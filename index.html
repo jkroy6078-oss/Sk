@@ -1,0 +1,2718 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>MYRA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://generativelanguage.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://api.anthropic.com" crossorigin>
+<link rel="preconnect" href="https://api.elevenlabs.io" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#03070c; --bg2:#071722; --teal:#2fd6e6; --ink:#c9f6fa; --muted:#6c97a2;
+  --font:'Chakra Petch',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font);
+  background-image:
+    radial-gradient(900px 500px at 78% 45%,rgba(20,90,110,.22),transparent 70%),
+    radial-gradient(600px 400px at 10% 90%,rgba(10,50,70,.25),transparent 70%);
+  overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+#stage{
+  position:relative;height:100%;max-width:1100px;margin:0 auto;padding:16px;
+  display:grid;grid-template-columns:minmax(98px,23%) minmax(30px,1fr) minmax(0,50%);
+  align-items:center;
+}
+#wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#wires path.base{fill:none;stroke-width:1.3;stroke-linejoin:round;opacity:.85}
+#wires path.flow{fill:none;stroke-width:2.4;stroke-linecap:round;stroke-dasharray:3 60;animation:fl 2.6s linear infinite;opacity:.35;filter:drop-shadow(0 0 3px currentColor)}
+body[data-mode="standby"] #wires path.flow{animation-duration:5s;opacity:.18}
+body:not([data-mode="standby"]) #wires path.flow{opacity:.95}
+@keyframes fl{to{stroke-dashoffset:-63}}
+
+/* ---------- left nodes ---------- */
+#nodes{grid-column:1;display:flex;flex-direction:column;gap:clamp(10px,2.6vh,20px);position:relative;z-index:2}
+.node{
+  --c:var(--teal);
+  position:relative;display:flex;align-items:center;gap:clamp(6px,1.2vw,12px);
+  width:100%;min-height:clamp(40px,7.4vh,58px);padding:0 clamp(8px,1.4vw,14px);
+  border-radius:11px;text-align:left;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--c) 14%,#0a2230) 0%,rgba(7,20,30,.9) 70%);
+  border:1px solid color-mix(in srgb,var(--c) 55%,transparent);
+  box-shadow:0 0 18px color-mix(in srgb,var(--c) 14%,transparent),inset 0 0 14px color-mix(in srgb,var(--c) 8%,transparent);
+  transition:transform .18s,box-shadow .18s;
+}
+.node:hover,.node[aria-expanded="true"]{transform:translateX(3px);box-shadow:0 0 26px color-mix(in srgb,var(--c) 38%,transparent),inset 0 0 18px color-mix(in srgb,var(--c) 14%,transparent)}
+.node .ic{
+  flex:none;width:clamp(22px,3.6vw,30px);aspect-ratio:1;display:grid;place-items:center;border-radius:7px;
+  border:1px solid color-mix(in srgb,var(--c) 60%,transparent);background:rgba(0,0,0,.35);color:var(--c)
+}
+.node .ic svg{width:62%;height:62%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.node .lb{font-size:clamp(9px,1.5vw,12px);font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);flex:1;min-width:0;white-space:nowrap}
+.node .dt{flex:none;width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+
+/* ---------- main panel ---------- */
+#panel{
+  grid-column:3;position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;
+  height:100%;max-height:660px;padding:14px;border-radius:16px;
+  border:1px solid rgba(47,214,230,.28);
+  background:
+    linear-gradient(rgba(47,214,230,.045) 1px,transparent 1px) 0 0/24px 24px,
+    linear-gradient(90deg,rgba(47,214,230,.045) 1px,transparent 1px) 0 0/24px 24px,
+    linear-gradient(160deg,rgba(14,42,56,.72),rgba(5,16,24,.88));
+  box-shadow:0 0 40px rgba(47,214,230,.07),inset 0 0 50px rgba(47,214,230,.05);
+}
+.status{
+  align-self:flex-start;display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  border:1px solid rgba(47,214,230,.3);background:rgba(4,14,22,.7);
+  font-size:10px;font-weight:500;letter-spacing:.18em;color:#7fc9d3
+}
+.status i{width:5px;height:5px;border-radius:50%;background:#5aa7b3;transition:background .3s,box-shadow .3s}
+body:not([data-mode="standby"]) .status i{background:var(--teal);box-shadow:0 0 8px var(--teal)}
+#orbwrap{flex:1;min-height:120px;width:100%;position:relative}
+#orb{position:absolute;inset:0;margin:auto;display:block}
+#log{
+  width:100%;max-height:5.6em;overflow-y:auto;margin-bottom:10px;font-size:12px;line-height:1.45;
+  text-align:center;scrollbar-width:none;color:var(--muted)
+}
+#log::-webkit-scrollbar{display:none}
+#log p{margin:0 0 3px}
+#log .me{color:#8fb6bd}
+#log .ai{color:var(--ink)}
+.cta{
+  position:relative;flex:none;width:min(78%,230px);height:38px;border:0;padding:0;background:transparent;
+  color:var(--teal);font-weight:600;font-size:12px;letter-spacing:.26em;
+  clip-path:polygon(13px 0,calc(100% - 13px) 0,100% 50%,calc(100% - 13px) 100%,13px 100%,0 50%);
+  filter:drop-shadow(0 0 8px rgba(47,214,230,.35))
+}
+.cta::before{content:"";position:absolute;inset:0;background:rgba(47,214,230,.85)}
+.cta::after{content:"";position:absolute;inset:1px;background:#06202a;
+  clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,12px 100%,0 50%)}
+.cta span{position:relative;z-index:1}
+.cta:hover::after{background:#0a2f3c}
+body:not([data-mode="standby"]) .cta{color:#ffb4a8}
+body:not([data-mode="standby"]) .cta::before{background:rgba(255,140,120,.85)}
+
+.composer{
+  width:100%;margin-top:12px;display:flex;align-items:center;gap:7px;padding:5px 5px 5px 14px;
+  border:1px solid rgba(47,214,230,.3);border-radius:999px;background:rgba(3,12,18,.78)
+}
+.composer input{flex:1;min-width:0;border:0;background:transparent;outline:0;font-size:13px;padding:6px 0}
+.composer input::placeholder{color:#4d7580}
+.composer:focus-within{border-color:rgba(47,214,230,.7);box-shadow:0 0 14px rgba(47,214,230,.18)}
+.ib{
+  flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  border:1px solid rgba(47,214,230,.4);background:rgba(47,214,230,.08);color:var(--teal)
+}
+.ib svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ib:hover{background:rgba(47,214,230,.2)}
+#mic.on{color:#fff;background:#e0483a;border-color:#ff8a7c;animation:pulse 1.2s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,100,85,.6)}100%{box-shadow:0 0 0 12px rgba(255,100,85,0)}}
+
+.top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.auto{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(4,14,22,.7);font-size:10px;font-weight:600;letter-spacing:.18em;color:#8aa3ab;transition:.2s}
+.auto i{width:22px;height:12px;border-radius:999px;background:#25414b;position:relative;transition:background .2s}
+.auto i::after{content:"";position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:#fff;transition:transform .2s}
+.auto[aria-checked="true"]{color:#ffbe73;border-color:#ffbe73;box-shadow:0 0 14px rgba(255,190,115,.3)}
+.auto[aria-checked="true"] i{background:#ffbe73}
+.auto[aria-checked="true"] i::after{transform:translateX(10px)}
+.sec{margin:16px 0 8px;font-size:11.5px;letter-spacing:.14em;color:var(--muted)}
+.sheet-card li.done span{text-decoration:line-through;opacity:.55}
+.sheet-card li small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.sheet-card li button.ok{color:#7dffb0}
+/* ---------- sheet ---------- */
+#sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(1,5,9,.72);backdrop-filter:blur(3px)}
+#sheet[hidden]{display:none}
+.sheet-card{
+  width:min(440px,100%);max-height:86dvh;overflow:auto;border-radius:16px;padding:18px;
+  background:linear-gradient(160deg,#0c2a38,#061520);border:1px solid color-mix(in srgb,var(--c,var(--teal)) 55%,transparent);
+  box-shadow:0 0 40px color-mix(in srgb,var(--c,var(--teal)) 25%,transparent);animation:pop .18s ease-out
+}
+@keyframes pop{from{transform:translateY(10px) scale(.98);opacity:0}}
+.sheet-card header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sheet-card h2{margin:0;font-size:15px;letter-spacing:.2em;font-weight:600;color:var(--c,var(--teal))}
+.x{width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;font-size:18px;line-height:1}
+.hint{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.row{display:flex;gap:8px;margin-bottom:10px}
+.fld,.sheet-card textarea,.sheet-card select{
+  width:100%;padding:9px 11px;border-radius:9px;border:1px solid rgba(47,214,230,.3);background:rgba(2,10,16,.8);font-size:13px;outline:0
+}
+.fld:focus,.sheet-card textarea:focus,.sheet-card select:focus{border-color:var(--teal)}
+.sheet-card textarea{min-height:130px;resize:vertical;line-height:1.5}
+.btn{flex:none;padding:0 16px;border-radius:9px;border:1px solid var(--teal);background:rgba(47,214,230,.12);color:var(--teal);font-weight:600;font-size:12px;letter-spacing:.1em}
+.btn:hover{background:rgba(47,214,230,.25)}
+.sheet-card ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.sheet-card li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border-radius:9px;background:rgba(47,214,230,.06);border:1px solid rgba(47,214,230,.15);font-size:13px}
+.sheet-card li button{border:0;background:none;color:#ff8a7c;font-size:16px}
+.empty{font-size:12.5px;color:var(--muted);padding:6px 2px}
+label.tg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.07);font-size:13px}
+label.tg small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+label.tg input{width:38px;height:20px;appearance:none;border-radius:999px;background:#25414b;position:relative;flex:none;cursor:pointer;transition:background .2s}
+label.tg input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+label.tg input:checked{background:var(--c,var(--teal))}
+label.tg input:checked::after{transform:translateX(18px)}
+.f{display:block;margin:0 0 12px;font-size:11.5px;letter-spacing:.08em;color:var(--muted)}
+.f .fld,.f select{margin-top:5px;letter-spacing:normal;color:var(--ink)}
+.saved{margin:8px 0 0;font-size:11.5px;color:#5aa7b3}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);z-index:30;max-width:90vw;padding:10px 16px;border-radius:10px;background:#0b2a36;border:1px solid var(--teal);font-size:12.5px;opacity:0;pointer-events:none;transition:.25s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:560px){
+  #stage{padding:12px 10px;grid-template-columns:96px minmax(22px,1fr) minmax(0,60%)}
+  #panel{padding:10px}
+  .node .lb{letter-spacing:.05em;font-size:8.5px}
+  .node{gap:5px;padding:0 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  #wires path.flow{animation:none}
+  .sheet-card,#mic.on{animation:none}
+}
+#agents .ib{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(47,214,230,.4);background:rgba(47,214,230,.08);color:var(--teal)}
+#agents .ib svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#agents .ib:hover{background:rgba(47,214,230,.2)}
+#agents .ib:disabled{opacity:.45}
+#agents .th{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(47,214,230,.2);background:rgba(3,10,16,.92)}
+#agents .th-l{display:flex;align-items:center;gap:8px;min-width:0}
+#agents .th-l .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal);flex:none}
+#agents .th-l b{font-size:11px;letter-spacing:.22em;font-weight:600;white-space:nowrap}
+#agents .th-l small{font-size:9px;padding:1px 6px;border:1px solid rgba(255,255,255,.2);border-radius:4px;color:var(--muted);white-space:nowrap}
+#agents .tabs{display:flex;gap:4px;margin:0;overflow-x:auto;scrollbar-width:none}
+#agents .tabs::-webkit-scrollbar{display:none}
+#agents .tabs button{flex:none;padding:4px 10px;border-radius:5px;border:1px solid rgba(47,214,230,.25);background:rgba(4,14,22,.7);font-size:10px;letter-spacing:.06em;color:#6c97a2}
+#agents .tabs button[aria-selected="true"]{color:#04121a;background:var(--teal);border-color:var(--teal);font-weight:600}
+#agents #ag-p-hub,#agents #ag-p-log{padding:12px}
+#agents /* scene */
+#ag-scene{
+  position:relative;width:100%;aspect-ratio:8/5;overflow:hidden;background:#0a0f1c
+}
+#agents #ag-cv{width:100%;height:100%;display:block;image-rendering:pixelated;cursor:default}
+#agents #ag-tags{position:absolute;inset:0;pointer-events:none}
+#agents .tag{
+  --c:var(--teal);position:absolute;transform:translateX(-50%);pointer-events:auto;
+  display:flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;white-space:nowrap;
+  font-size:clamp(8px,1.6vw,12px);font-weight:600;letter-spacing:.08em;
+  background:rgba(4,10,18,.9);border:1px solid var(--c);color:var(--ink)
+}
+#agents .tag i,#agents .card i{width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
+#agents .tag.busy i,#agents .card.busy i{animation:blink .7s steps(2) infinite}
+#agents .say{
+  --c:var(--teal);position:absolute;transform:translate(-50%,-100%);pointer-events:none;z-index:2;
+  padding:2px 7px;border-radius:6px;white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis;
+  font-size:clamp(7.5px,1.45vw,11px);font-weight:600;background:#f4f7ff;color:#0a1020;border:1px solid var(--c)
+}
+#agents .say[hidden]{display:none}
+@keyframes blink{50%{opacity:.2}}
+#agents .sbtns{position:absolute;top:2.2%;right:1.4%;display:flex;gap:4px;z-index:3}
+#agents .sbtns button{width:clamp(15px,3.6vw,23px);aspect-ratio:1;padding:0;border-radius:5px;border:1px solid rgba(47,214,230,.45);background:rgba(3,10,16,.88);color:var(--teal);display:grid;place-items:center}
+#agents .sbtns svg{width:62%;height:62%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#agents .hud{position:absolute;left:6px;right:6px;bottom:6px;z-index:3;display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:10px;border:1px solid rgba(47,214,230,.3);background:rgba(3,10,16,.88);font-size:clamp(8px,1.9vw,11px);letter-spacing:.08em;color:#7fc9d3}
+#agents .hud .hb{padding:3px 8px;border-radius:7px;border:1px solid rgba(47,214,230,.4);background:rgba(47,214,230,.08);color:var(--teal);font-size:inherit;letter-spacing:.06em;white-space:nowrap}
+#agents .hud .hb.ok{color:#7dffb0;border-color:rgba(125,255,176,.5)}
+#agents .hud .hb.bad{color:#ffb4a8;border-color:#ff8a7c}
+#agents #ag-hud-model{max-width:32%;overflow:hidden;text-overflow:ellipsis}
+#agents .hud .sp{flex:1}
+#agents #ag-hud-n{white-space:nowrap}
+#agents #ag-menu{position:absolute;right:6px;bottom:44px;z-index:4;width:min(240px,72%);list-style:none;margin:0;padding:6px;border-radius:12px;border:1px solid rgba(47,214,230,.35);background:rgba(3,10,16,.97);display:grid;gap:5px}
+#agents #ag-menu[hidden]{display:none}
+#agents .card{
+  --c:var(--teal);width:100%;text-align:left;padding:7px 11px;border-radius:9px;display:block;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--c) 13%,#0a2230),rgba(7,20,30,.92) 75%);
+  border:1px solid color-mix(in srgb,var(--c) 55%,transparent)
+}
+#agents .card b{display:flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.1em}
+#agents .card span{display:block;margin-top:2px;font-size:11.5px;color:var(--ink)}
+#agents .card small{display:none}
+#agents /* hub + log */
+.pg{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px}
+#agents .pc{border:1px solid rgba(47,214,230,.25);border-radius:12px;background:rgba(6,18,28,.78);padding:12px}
+#agents .pc h3{margin:0 0 8px;font-size:11.5px;letter-spacing:.16em;color:var(--teal);font-weight:600}
+#agents .pc ul,#agents .lg{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+#agents .pc li,#agents .lg li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:9px;background:rgba(47,214,230,.06);border:1px solid rgba(47,214,230,.14);font-size:12.5px;overflow-wrap:anywhere}
+#agents .pc li small,#agents .lg li small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+#agents .pc li button{border:0;background:none;color:#ff8a7c;font-size:16px}
+#agents .pc .emp,#agents .emp{font-size:12px;color:var(--muted);padding:4px 2px}
+#agents .pc form{display:flex;gap:6px;margin-top:8px}
+#agents .pc form input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(47,214,230,.3);background:rgba(2,10,16,.8);font-size:12.5px;outline:0;color:var(--ink)}
+#agents .pc form button{flex:none;padding:0 12px;border-radius:8px;border:1px solid var(--teal);background:rgba(47,214,230,.12);color:var(--teal);font-size:11px;letter-spacing:.1em}
+#agents .lg li{justify-content:flex-start;gap:12px}
+#agents .lg li b{flex:none;font-size:11px;letter-spacing:.08em;color:var(--teal)}
+#agents .lg li.bad b{color:#ff8a7c}
+#agents .lg .t{flex:1;min-width:0}
+#agents /* drawer */
+#ag-veil{position:fixed;inset:0;z-index:20;background:rgba(1,5,9,.62)}
+#agents #ag-drawer{
+  --c:var(--teal);position:fixed;z-index:21;display:flex;flex-direction:column;
+  left:0;right:0;bottom:0;top:7dvh;border-radius:16px 16px 0 0;
+  background:linear-gradient(160deg,#0c2230,#050f18);
+  border:1px solid color-mix(in srgb,var(--c) 55%,transparent);
+  box-shadow:0 0 40px color-mix(in srgb,var(--c) 22%,transparent);
+  padding-bottom:env(safe-area-inset-bottom,0px)
+}
+#agents #ag-veil[hidden],#agents #ag-drawer[hidden],#agents #ag-cfgm[hidden]{display:none}
+@media (min-width:800px){#agents #ag-drawer{left:auto;top:0;width:470px;border-radius:0}}
+#agents .dh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+#agents .dh h2{margin:0;font-size:15px;letter-spacing:.16em;color:var(--c)}
+#agents .dh p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+#agents .x{width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;font-size:18px;line-height:1}
+#agents .callbar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px;color:var(--muted)}
+#agents .callbar.show{display:flex}
+#agents .callbar .live{color:#ff8a7c;font-weight:600;letter-spacing:.1em}
+#agents .callbar button{padding:6px 12px;border-radius:8px;border:1px solid var(--c);background:rgba(255,255,255,.05);color:var(--ink);font-size:11.5px;letter-spacing:.06em}
+#agents .msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+#agents .empty{margin:auto;max-width:280px;text-align:center;color:var(--muted);font-size:13px;line-height:1.55}
+#agents .b{max-width:92%;padding:9px 12px;border-radius:12px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+#agents .b p{margin:0 0 6px}
+#agents .b p:last-child{margin:0}
+#agents .b.me{align-self:flex-end;background:rgba(47,214,230,.14);border:1px solid rgba(47,214,230,.3)}
+#agents .b.ag{align-self:flex-start;background:rgba(255,255,255,.05);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+#agents .b.err{border-color:#ff8a7c;color:#ffd0c8}
+#agents .b .from{display:block;font-size:10.5px;letter-spacing:.1em;color:var(--muted);margin-bottom:3px}
+#agents .dots span{display:inline-block;width:6px;height:6px;margin-right:4px;border-radius:50%;background:var(--c);animation:blink .9s steps(2) infinite}
+#agents .dots span:nth-child(2){animation-delay:.2s}
+#agents .dots span:nth-child(3){animation-delay:.4s}
+#agents .code{margin:6px 0;border-radius:9px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:#030a11}
+#agents .code header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 9px;background:rgba(255,255,255,.06);font-size:11px;color:var(--muted)}
+#agents .code header div{display:flex;gap:6px}
+#agents .sm{padding:3px 9px;border-radius:7px;border:1px solid rgba(47,214,230,.4);background:rgba(47,214,230,.1);color:var(--teal);font-size:11px}
+#agents .code pre{margin:0;padding:10px;overflow:auto;max-height:260px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#d6f3f6}
+#agents .links{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+#agents .links a{padding:7px 12px;border-radius:9px;text-decoration:none;font-size:12.5px;font-weight:600;color:#071018;background:var(--c)}
+#agents .srcs a{padding:4px 9px;border-radius:999px;border:1px solid rgba(47,214,230,.35);color:#8fe7f1;font-size:11px;text-decoration:none;background:rgba(47,214,230,.07)}
+#agents .prev{margin-top:8px;border-radius:10px;overflow:hidden;border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
+#agents .prev iframe{display:block;width:100%;height:320px;border:0;background:#fff}
+#agents .prev.full{position:fixed;inset:0;z-index:40;border-radius:0;background:#04080f;display:flex;flex-direction:column}
+#agents .prev.full iframe{flex:1;height:auto}
+#agents .prev header{display:flex;gap:6px;justify-content:flex-end;padding:6px;background:rgba(255,255,255,.06)}
+#agents .chips{display:flex;gap:7px;overflow-x:auto;padding:0 14px 8px;scrollbar-width:none}
+#agents .chips::-webkit-scrollbar{display:none}
+#agents .chips button{flex:none;padding:6px 11px;border-radius:999px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:rgba(255,255,255,.04);font-size:12px;white-space:nowrap}
+#agents .chips button:hover{background:rgba(255,255,255,.1)}
+#agents .composer{margin:0 14px 14px;display:flex;align-items:center;gap:7px;padding:5px 5px 5px 14px;border:1px solid rgba(47,214,230,.3);border-radius:999px;background:rgba(3,12,18,.8)}
+#agents .composer:focus-within{border-color:rgba(47,214,230,.7)}
+#agents .composer input{flex:1;min-width:0;border:0;background:transparent;outline:0;font-size:13.5px;padding:6px 0}
+#agents .composer input::placeholder{color:#4d7580}
+#agents #ag-mic.on{color:#fff;background:#e0483a;border-color:#ff8a7c}
+#agents /* settings */
+#ag-cfgm{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(1,5,9,.72)}
+#agents .cfg{width:min(420px,100%);max-height:90dvh;overflow:auto;padding:18px;border-radius:16px;background:linear-gradient(160deg,#0c2a38,#061520);border:1px solid rgba(47,214,230,.5)}
+#agents .cfg h2{margin:0 0 12px;font-size:15px;letter-spacing:.2em;color:var(--teal);display:flex;justify-content:space-between;align-items:center}
+#agents .f{display:block;margin:0 0 12px;font-size:11.5px;letter-spacing:.08em;color:var(--muted)}
+#agents .fld{width:100%;margin-top:5px;padding:9px 11px;border-radius:9px;border:1px solid rgba(47,214,230,.3);background:rgba(2,10,16,.8);font-size:13px;outline:0;color:var(--ink)}
+#agents .fld:focus{border-color:var(--teal)}
+#agents .note{margin:6px 0 0;font-size:11.5px;color:#5aa7b3;line-height:1.5}
+@media (prefers-reduced-motion:reduce){#agents .tag.busy i,#agents .card.busy i,#agents .dots span{animation:none}}
+html,body{height:auto;min-height:100%}
+body{overflow-x:hidden;overflow-y:auto}
+#stage{height:clamp(410px,52dvh,560px)}
+#agents{width:min(1068px,calc(100% - 24px));margin:4px auto 28px;border:1px solid rgba(47,214,230,.3);border-radius:14px;overflow:hidden;
+  background:rgba(5,12,20,.88);box-shadow:0 0 40px rgba(47,214,230,.06);color:var(--ink);font-family:var(--font)}
+#agents.fs{position:fixed;inset:0;z-index:25;width:auto;margin:0;border-radius:0;overflow:auto;background:#04080f}
+#agents .composer{width:auto}
+@media (max-width:560px){
+  #agents .th-l small{display:none}
+  #agents .tabs button{padding:4px 8px}
+  .node .ic{width:21px}
+  .node .lb{font-size:8px;letter-spacing:.03em}
+  .node .dt{width:5px;height:5px}
+}
+
+.memq{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 8px;padding:6px 8px;border-radius:10px;border:1px solid rgba(255,190,115,.5);background:rgba(255,190,115,.08);font-size:11.5px;color:#ffd9a8}
+.memq[hidden]{display:none}
+.memq span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.memq button{flex:none;padding:3px 9px;border-radius:7px;border:1px solid currentColor;background:transparent;color:inherit;font-size:11px}
+#camwrap{position:absolute;right:6px;bottom:6px;width:76px;aspect-ratio:3/4;border-radius:10px;overflow:hidden;border:1px solid rgba(47,214,230,.6);background:#000;z-index:3}
+#camwrap[hidden]{display:none}
+#camv{width:100%;height:100%;object-fit:cover;display:block}
+#camflip{position:absolute;left:3px;bottom:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:0}
+#cam[aria-pressed="true"]{color:#fff;background:#1f9d6b;border-color:#7dffb0}
+#orb{cursor:pointer}
+#log .lk{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:3px 0 5px}
+#log .lk a{padding:4px 10px;border-radius:8px;background:var(--teal);color:#04121a;font-weight:600;font-size:11.5px;text-decoration:none}
+
+#start.cta{clip-path:none;filter:none;flex:1;min-width:0;max-width:200px;width:auto;height:44px;display:flex;align-items:center;justify-content:center;gap:12px;
+  background:rgba(4,22,30,.86);border:2px solid #19d5e8;border-radius:999px;color:#fff;font-size:15px;font-weight:600;letter-spacing:.16em;box-shadow:0 0 16px rgba(25,213,232,.22)}
+#start.cta::before,#start.cta::after{display:none}
+#start.cta:hover{background:rgba(8,40,52,.95)}
+body:not([data-mode="standby"]) #start.cta{color:#fff}
+#start .cdot{width:13px;height:13px;border-radius:50%;background:#2fd6e6;box-shadow:0 0 8px #2fd6e6;flex:none}
+body:not([data-mode="standby"]) #start .cdot{background:#c94b55;box-shadow:0 0 8px rgba(201,75,85,.8)}
+.ctarow{display:flex;align-items:center;justify-content:center;gap:10px;width:100%}
+.kill{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid rgba(220,80,90,.75);background:rgba(60,10,16,.6);color:#ff8d95;display:grid;place-items:center;padding:0}
+.kill svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.kill:hover{background:rgba(120,20,30,.7)}
+#killm{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(1,5,9,.8);backdrop-filter:blur(3px)}
+#killm[hidden]{display:none}
+.killcard{width:min(400px,100%);padding:18px;border-radius:16px;background:linear-gradient(160deg,#2a1017,#12080c);border:1px solid rgba(220,80,90,.6);box-shadow:0 0 40px rgba(220,80,90,.2)}
+.killcard h2{margin:0 0 10px;font-size:15px;letter-spacing:.24em;color:#ff8d95}
+.killcard .hint.warn{color:#ffb4a8}
+.kb{display:block;width:100%;margin:0 0 9px;padding:12px 14px;border-radius:11px;text-align:left;font-size:13px;font-weight:600;letter-spacing:.08em;border:1px solid rgba(47,214,230,.5);background:rgba(47,214,230,.08);color:var(--ink)}
+.kb small{display:block;margin-top:4px;font-size:11.5px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.kb.danger{border-color:rgba(220,80,90,.8);background:rgba(220,80,90,.14);color:#ffb4b9}
+.kb.ghost{background:transparent;border-color:rgba(255,255,255,.2);text-align:center}
+#farewell{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;background:#03070c}
+.fcard{width:min(420px,100%);padding:22px;border-radius:16px;border:1px solid rgba(47,214,230,.4);background:linear-gradient(160deg,#0c2230,#050f18);text-align:center;color:var(--ink)}
+.fcard h2{margin:0 0 12px;font-size:15px;letter-spacing:.22em;color:var(--teal)}
+.fcard p{margin:0 0 10px;font-size:13px;line-height:1.55;color:#a9d6dc}
+.fcard code{display:block;margin:0 0 14px;padding:9px 10px;border-radius:8px;background:#030a11;color:#d6f3f6;font-size:12.5px}
+.fcard button{padding:10px 18px;border-radius:999px;border:1px solid var(--teal);background:rgba(47,214,230,.12);color:var(--teal);font-weight:600;letter-spacing:.14em;font-size:12px}
+
+.prov{align-self:center;min-height:13px;margin:3px 0 0;font-size:9.5px;letter-spacing:.14em;color:#5aa7b3;text-align:center;white-space:nowrap}
+
+</style>
+</head>
+<body data-mode="standby">
+
+<div id="stage">
+  <svg id="wires" aria-hidden="true"></svg>
+
+  <nav id="nodes" aria-label="Myra sections">
+    <button class="node" data-s="memory" style="--c:#2fd6e6" aria-expanded="false">
+      <span class="ic"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg></span>
+      <span class="lb">Memory</span><span class="dt"></span>
+    </button>
+    <button class="node" data-s="skills" style="--c:#f2933f" aria-expanded="false">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H19v13H5.5A1.5 1.5 0 0 0 4 18.5z"/><path d="M4 18.5A1.5 1.5 0 0 0 5.5 20H19v-3"/><path d="M9 8.5h6"/></svg></span>
+      <span class="lb">Skills</span><span class="dt"></span>
+    </button>
+    <button class="node" data-s="soul" style="--c:#3ddc84" aria-expanded="false">
+      <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/></svg></span>
+      <span class="lb">Soul</span><span class="dt"></span>
+    </button>
+    <button class="node" data-s="setting" style="--c:#b9c6d6" aria-expanded="false">
+      <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg></span>
+      <span class="lb">Setting</span><span class="dt"></span>
+    </button>
+  </nav>
+
+  <main id="panel">
+    <div class="top">
+      <div class="status"><i></i><span id="stat">STANDBY</span></div>
+      <button class="auto" id="auto" role="switch" aria-checked="false" aria-label="Autonomous mode on ya off"><i></i>AUTO</button>
+    </div>
+    <div id="prov" class="prov" aria-live="polite"></div>
+    <div id="orbwrap"><canvas id="orb" aria-label="Myra orb. Tap karke Myra ko beech mein rok sakte ho"></canvas><div id="camwrap" hidden><video id="camv" playsinline muted autoplay></video><button id="camflip" aria-label="Camera badlo">⟲</button></div></div>
+    <div id="log" aria-live="polite"></div>
+    <div class="memq" id="memq" hidden><span id="memq-t"></span><button id="memq-y" aria-label="Haan, yaad rakho">✓ Haan</button><button id="memq-n" aria-label="Nahi">✗</button></div>
+    <div class="ctarow"><button class="cta" id="start"><i class="cdot"></i><span id="startTxt">START</span></button><button class="kill" id="kill" aria-label="Kill: Myra ko band ya delete karo"><svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button></div>
+    <div class="composer">
+      <input id="txt" type="text" placeholder="Yahan type karo…" autocomplete="off" aria-label="Message type karo">
+      <button class="ib" id="cam" aria-label="Camera on ya off" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      <button class="ib" id="mic" aria-label="Mic se bolo" aria-pressed="false">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+      </button>
+      <button class="ib" id="send" aria-label="Bhejo">
+        <svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
+      </button>
+    </div>
+  </main>
+</div>
+
+<div id="killm" hidden>
+  <div class="killcard" role="dialog" aria-modal="true" aria-labelledby="kill-t">
+    <h2 id="kill-t">KILL</h2>
+    <div id="kill-s1">
+      <p class="hint">Kya karna hai?</p>
+      <button class="kb" id="kill-stop">SAB BAND KARO<small>Mic, camera, Live, awaaz aur auto mode turant band. Aapka data safe rahega.</small></button>
+      <button class="kb danger" id="kill-del">MYRA KO DELETE KARO<small>Saari saved cheezein hamesha ke liye hat jayengi.</small></button>
+      <button class="kb ghost" id="kill-x">RADDH KARO</button>
+    </div>
+    <div id="kill-s2" hidden>
+      <p class="hint warn">Ye wapas nahi aayega. Hat jayega: API keys (Gemini, Claude, ElevenLabs), memory, goals, notes, tasks, contacts, agents ka log aur saari settings.</p>
+      <button class="kb danger" id="kill-yes">HAAN, PAKKA DELETE KARO</button>
+      <button class="kb ghost" id="kill-no">NAHI, WAPAS JAO</button>
+    </div>
+  </div>
+</div>
+
+<div id="agents">
+<div class="th">
+  <div class="th-l"><i class="dot"></i><b>AGENT TOWN</b><small id="ag-tn">6 agents</small></div>
+  <nav class="tabs" role="tablist" aria-label="Agent Town sections">
+    <button role="tab" aria-selected="true" data-t="office">agents</button>
+    <button role="tab" aria-selected="false" data-t="hub">shared hub</button>
+    <button role="tab" aria-selected="false" data-t="log">log</button>
+  </nav>
+</div>
+
+<section id="ag-p-office">
+  <div id="ag-scene">
+    <canvas id="ag-cv" width="480" height="300" aria-label="Pixel office jisme chhe agents kaam kar rahe hain"></canvas>
+    <div id="ag-tags"></div>
+    <div class="sbtns">
+      <button id="ag-fs" aria-label="Bada karo ya chhota karo" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button id="ag-rs" aria-label="Agents ko seat par bhejo"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
+      <button id="ag-cfg" aria-label="Setting"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg></button>
+    </div>
+    <ul id="ag-menu" hidden></ul>
+    <div class="hud">
+      <button class="hb ok" id="ag-hud-st" aria-label="API key setting kholo">MYRA ONLINE</button>
+      <button class="hb" id="ag-hud-model" aria-label="Model badlo"></button>
+      <span class="sp"></span>
+      <span id="ag-hud-ai"></span>
+      <span id="ag-hud-n"></span>
+      <button class="hb" id="ag-pause" aria-pressed="false">PAUSE</button>
+      <button class="hb" id="ag-menubtn" aria-expanded="false">AGENTS</button>
+    </div>
+  </div>
+</section>
+<section id="ag-p-hub" hidden></section>
+<section id="ag-p-log" hidden></section>
+
+<div id="ag-veil" hidden></div>
+<aside id="ag-drawer" hidden role="dialog" aria-modal="true" aria-labelledby="ag-dn">
+  <div class="dh">
+    <div><h2 id="ag-dn"></h2><p id="ag-dr"></p></div>
+    <button class="x" id="ag-dx" aria-label="Band karo">×</button>
+  </div>
+  <div class="callbar" id="ag-callbar">
+    <span id="ag-callst">Call band</span>
+    <button id="ag-callbtn">CALL MODE SHURU</button>
+  </div>
+  <div class="msgs" id="ag-msgs" aria-live="polite"></div>
+  <div class="chips" id="ag-chips"></div>
+  <div class="composer">
+    <input id="ag-txt" type="text" placeholder="Kaam bolo ya type karo…" autocomplete="off" aria-label="Agent ko kaam do">
+    <button class="ib" id="ag-mic" aria-label="Mic se bolo" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></button>
+    <button class="ib" id="ag-send" aria-label="Bhejo"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg></button>
+  </div>
+</aside>
+
+<div id="ag-cfgm" hidden>
+  <div class="cfg" role="dialog" aria-modal="true" aria-labelledby="ag-ct">
+    <h2 id="ag-ct">SETTING <button class="x" id="ag-cx" aria-label="Band karo">×</button></h2>
+    <label class="f">GEMINI API KEY<input class="fld" id="ag-c-key" type="password" autocomplete="off" placeholder="aistudio.google.com/apikey"></label>
+    <label class="f">GEMINI MODEL (KHAALI = AUTO)<input class="fld" id="ag-c-model" placeholder="gemini-3.8-flash" autocomplete="off"></label>
+    <label class="f">CLAUDE API KEY (BACKUP)<input class="fld" id="ag-c-ckey" type="password" autocomplete="off" placeholder="console.anthropic.com"></label>
+    <label class="f">AAPKA NAAM (RING CALL MEIN ISSE BOLEGI)<input class="fld" id="ag-c-owner" placeholder="Jaise: Rahul" autocomplete="off"></label>
+    <label class="f">DEFAULT COUNTRY CODE (10 DIGIT NUMBER KE LIYE)<input class="fld" id="ag-c-cc" placeholder="91" inputmode="numeric" autocomplete="off"></label>
+    <p class="note">Key sirf is browser mein save hoti hai. Key, model, contacts aur tasks Myra ke saath share hote hain.</p>
+  </div>
+</div>
+</div>
+
+<div id="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sh-title">
+    <header><h2 id="sh-title"></h2><button class="x" id="sh-x" aria-label="Band karo">×</button></header>
+    <div id="sh-body"></div>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const TAU = Math.PI * 2;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- storage (per-browser, safe if blocked) ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('myra_' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem('myra_' + k, JSON.stringify(v)); return true; } catch { return false; } }
+};
+const OLD_SOUL = 'Tum MYRA ho, ek friendly personal AI companion. Hinglish mein chhote, natural jawab do (2-3 vaakya). Zaroorat ho tabhi ek chhota sawal poochho.';
+const DEFAULT_SOUL = 'Tum MYRA ho, user ki apni personal AI companion. ' +
+  'Swabhav: friendly, caring aur hamesha ek jaisi (consistent). Garam, natural bolchaal. User jis bhasha mein bole (Hindi, Hinglish, English ya koi aur) usi mein jawab do. ' +
+  'Baat karne ka tareeka: pehle user ki baat aur mood samjho, phir chhota jawab do (1-3 vaakya). Pichli baat ka context yaad rakho; zaroorat ho to ek natural follow-up sawal poochho (ek hi, har baar nahi). User dukhi ya pareshan ho to pehle sahaanubhuti, phir madad. ' +
+  'Yaadein: user ki pasand ya jaankari tabhi permanent yaad rakho jab user approve kare ("Kya main ye yaad rakhun?"). Goals aur projects par samay-samay par halka follow-up karo, bina dabaav ya guilt ke. ' +
+  'Sachchai: kabhi jhootha claim mat karo. Jo kaam tool ne nahi kiya use "ho gaya" mat kaho. Jo pata nahi use "pata nahi" kaho. Insaan hone ka dikhava mat karo. Medical, legal ya paise ke bade faisle mein salah dene se pehle batao ki tum professional nahi ho. ' +
+  'User beech mein tok de to turant ruk jao.';
+if (store.get('soul', '') === OLD_SOUL) store.set('soul', DEFAULT_SOUL);
+const SKILLS = [
+  ['web', 'Web search', 'Internet se jaankari dhoondhna'],
+  ['rem', 'Reminders', 'Yaad dilana'],
+  ['notes', 'Notes', 'Baatein likh lena'],
+  ['yt', 'YouTube', 'Video khojna']
+];
+
+/* ---------- toast ---------- */
+let tt;
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), Math.max(3200, m.length * 55)); }
+
+/* ---------- wires ---------- */
+const stage = $('stage'), panel = $('panel'), svg = $('wires');
+const nodeEls = [...document.querySelectorAll('.node')];
+function drawWires(){
+  const s = stage.getBoundingClientRect(), p = panel.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${s.width} ${s.height}`);
+  const xp = p.left - s.left, cy = p.top - s.top + p.height / 2;
+  let out = '';
+  nodeEls.forEach((n, i) => {
+    const r = n.getBoundingClientRect(), c = getComputedStyle(n).getPropertyValue('--c').trim();
+    const x1 = r.right - s.left, y1 = r.top - s.top + r.height / 2;
+    const py = cy + (i - (nodeEls.length - 1) / 2) * 9, xm = x1 + (xp - x1) * 0.4;
+    const d = `M${x1} ${y1}H${xm}L${xp - 26} ${py}H${xp}`;
+    out += `<g style="color:${c}"><path class="base" d="${d}" stroke="${c}"/><path class="flow" d="${d}" stroke="${c}"/>` +
+           `<circle cx="${x1}" cy="${y1}" r="2.6" fill="${c}"/><circle cx="${xp}" cy="${py}" r="2.2" fill="${c}"/></g>`;
+  });
+  svg.innerHTML = out;
+}
+new ResizeObserver(drawWires).observe(stage);
+addEventListener('resize', drawWires);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawWires);
+drawWires();
+
+/* ---------- orb ---------- */
+const cv = $('orb'), g = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function fit(){
+  const r = $('orbwrap').getBoundingClientRect();
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  const size = Math.max(60, Math.min(r.width, r.height));
+  W = H = size;
+  cv.width = size * DPR; cv.height = size * DPR;
+  cv.style.width = size + 'px'; cv.style.height = size + 'px';
+  drawWires();
+}
+new ResizeObserver(fit).observe($('orbwrap'));
+/* ---------- circle UI: 3D particle sphere + orbit rings + satellites ---------- */
+const PT = [];
+(function(){
+  const sph = () => { const u = Math.random() * 2 - 1, a = Math.random() * TAU, r = Math.sqrt(1 - u * u); return [r * Math.cos(a), u, r * Math.sin(a)]; };
+  for (let i = 0; i < 520; i++){ const p = sph(), rad = 0.92 + Math.random() * 0.1; PT.push({ x: p[0] * rad, y: p[1] * rad, z: p[2] * rad, s: 1 + Math.random() * 2.8, k: 0, ph: Math.random() * TAU }); }
+  for (let i = 0; i < 150; i++){ const p = sph(), rad = Math.pow(Math.random(), 0.55) * 0.82; PT.push({ x: p[0] * rad, y: p[1] * rad, z: p[2] * rad, s: 0.6 + Math.random() * 1.2, k: 1, ph: Math.random() * TAU }); }
+  const hv = [0.55, -0.62, 0.56], hl = Math.hypot(hv[0], hv[1], hv[2]); hv.forEach((v, i) => { hv[i] = v / hl; });
+  for (let i = 0; i < 80; i++){
+    const sp = 0.5; let x = hv[0] + (Math.random() - 0.5) * sp, y = hv[1] + (Math.random() - 0.5) * sp, z = hv[2] + (Math.random() - 0.5) * sp;
+    const l = Math.hypot(x, y, z), rad = 0.55 + Math.random() * 0.45;
+    PT.push({ x: x / l * rad, y: y / l * rad, z: z / l * rad, s: 1.2 + Math.random() * 2.2, k: 2, ph: Math.random() * TAU });
+  }
+  for (let i = 0; i < 7; i++){ const p = sph(); PT.push({ x: p[0], y: p[1], z: p[2], s: 1 + Math.random() * 1.5, k: 2, ph: Math.random() * TAU }); }
+})();
+const ORB = {
+  t: 0,
+  orbs: [
+    { rx: 0.42, ry: 1.04, rot: 0.34, c: '47,200,215', a: 0.34, w: 1 },
+    { rx: 0.30, ry: 1.06, rot: 0.13, c: '200,175,70', a: 0.34, w: 1 },
+    { rx: 0.78, ry: 1.00, rot: 0.52, c: '47,200,215', a: 0.30, w: 1.2 }
+  ],
+  sats: [
+    { o: 2, p: 0.8, v: -0.22, kind: 'comet' },
+    { o: 0, p: 3.6, v: 0.16, kind: 'green' },
+    { o: 1, p: 1.2, v: 0.11, kind: 'faint' },
+    { o: 0, p: 5.4, v: -0.09, kind: 'faint' }
+  ]
+};
+
+let mode = 'standby', level = 0, last = performance.now(), spin = 0;
+function target(t){
+  switch (mode){
+    case 'listening': return live.on ? 0.22 + Math.min(0.78, live.inLvl * 6) : 0.65 + 0.3 * Math.sin(t * 7);
+    case 'thinking':  return 0.5 + 0.15 * Math.sin(t * 3);
+    case 'working':   return 0.72 + 0.16 * Math.sin(t * 12);
+    case 'speaking':  return live.on ? 0.3 + Math.min(0.7, live.lvl * 3.5) : 0.55 + 0.35 * Math.abs(Math.sin(t * 9) * Math.sin(t * 2.3));
+    case 'active':    return 0.22;
+    default:          return 0.04;
+  }
+}
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const t = now / 1000, k = RM ? 0.15 : 1;
+  level += (target(t) - level) * Math.min(1, dt * 6);
+  spin += dt * (0.10 + 0.5 * level) * (mode === 'working' ? 3 : 1) * k;
+  ORB.t += dt * (0.35 + 0.9 * level) * k;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2, R = W * 0.36, u = W / 300;
+  /* outer circles: thin solid + dashed */
+  g.lineWidth = 1; g.strokeStyle = 'rgba(90,210,220,' + (0.14 + 0.1 * level) + ')';
+  g.beginPath(); g.arc(cx, cy, R * 1.14, 0, TAU); g.stroke();
+  g.setLineDash([5 * u, 6 * u]); g.strokeStyle = 'rgba(90,210,220,0.13)';
+  g.beginPath(); g.arc(cx, cy, R * 1.27, 0, TAU); g.stroke(); g.setLineDash([]);
+  /* glow with bright core */
+  const a0 = 0.5 + 0.35 * level, gl = g.createRadialGradient(cx, cy, 0, cx, cy, R * 1.05);
+  gl.addColorStop(0, 'rgba(215,255,255,' + Math.min(1, a0 * 1.1) + ')');
+  gl.addColorStop(0.07, 'rgba(130,238,244,' + a0 * 0.8 + ')');
+  gl.addColorStop(0.3, 'rgba(28,178,192,' + (0.42 + 0.2 * level) + ')');
+  gl.addColorStop(0.65, 'rgba(14,120,134,' + (0.2 + 0.1 * level) + ')');
+  gl.addColorStop(0.88, 'rgba(10,95,108,' + (0.08 + 0.06 * level) + ')');
+  gl.addColorStop(1, 'rgba(10,95,108,0)');
+  g.fillStyle = gl; g.beginPath(); g.arc(cx, cy, R * 1.05, 0, TAU); g.fill();
+  /* orbit rings */
+  const O = ORB.orbs.map((o, i) => ({ rx: o.rx * R, ry: o.ry * R, rot: o.rot + (RM ? 0 : 0.035 * Math.sin(ORB.t * 0.5 + i * 2)) }));
+  ORB.orbs.forEach((o, i) => { g.strokeStyle = 'rgba(' + o.c + ',' + (o.a + 0.12 * level) + ')'; g.lineWidth = o.w; g.beginPath(); g.ellipse(cx, cy, O[i].rx, O[i].ry, O[i].rot, 0, TAU); g.stroke(); });
+  /* square particles on a rotating 3D sphere (cyan, dim teal, amber cluster) */
+  const ca = Math.cos(spin), sa = Math.sin(spin), ct = Math.cos(-0.38), st = Math.sin(-0.38);
+  for (let i = 0; i < PT.length; i++){
+    const p = PT[i], x = p.x * ca + p.z * sa, z = -p.x * sa + p.z * ca;
+    const y2 = p.y * ct - z * st, z2 = p.y * st + z * ct;
+    const wob = 1 + level * 0.07 * Math.sin(t * 3 + p.ph);
+    const sx = cx + x * R * wob, sy = cy + y2 * R * wob, d = (z2 + 1) / 2;
+    const rim = Math.min(1, Math.hypot(x, y2) * 1.15), mid = p.k === 2 ? 1 : 0.28 + 0.72 * rim * rim;
+    const sz = Math.max(1, (0.7 + p.s * 1.15) * u * (0.65 + 0.55 * d) * (p.k === 2 ? 1 : 0.7 + 0.3 * rim));
+    let al = p.k === 1 ? 0.25 + 0.35 * d : 0.3 + 0.7 * d; al = Math.min(1, al * mid * (0.8 + level * 0.4));
+    g.fillStyle = p.k === 2 ? 'rgba(228,170,10,' + al + ')' : (p.k === 1 ? 'rgba(60,190,205,' + al + ')' : 'rgba(25,213,232,' + al + ')');
+    g.fillRect(sx - sz / 2, sy - sz / 2, sz, sz);
+  }
+  /* satellites on the orbits */
+  ORB.sats.forEach(s => {
+    const o = O[s.o], ang = s.p + ORB.t * s.v * 3, cr = Math.cos(o.rot), sr = Math.sin(o.rot);
+    const pos = (th) => { const ex = o.rx * Math.cos(th), ey = o.ry * Math.sin(th); return [cx + ex * cr - ey * sr, cy + ex * sr + ey * cr]; };
+    const pp = pos(ang), px = pp[0], py = pp[1];
+    if (s.kind === 'comet'){
+      for (let i = 12; i >= 1; i--){ const tp = pos(ang - Math.sign(s.v) * i * 0.035); g.fillStyle = 'rgba(160,245,250,' + 0.30 * (1 - i / 13) + ')'; g.beginPath(); g.arc(tp[0], tp[1], Math.max(0.5, (3.4 - i * 0.18) * u), 0, TAU); g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,0.16)'; g.beginPath(); g.arc(px, py, 9 * u, 0, TAU); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(px, py, 3 * u, 0, TAU); g.fill();
+    } else if (s.kind === 'green'){
+      g.strokeStyle = '#3ddc84'; g.lineWidth = 1.6 * u; g.beginPath(); g.arc(px, py, 6.5 * u, 0, TAU); g.stroke();
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(px, py, 2.2 * u, 0, TAU); g.fill();
+    } else {
+      g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.4 * u; g.beginPath(); g.arc(px, py, 7 * u, 0, TAU); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(px, py, 2 * u, 0, TAU); g.fill();
+    }
+  });
+  g.fillStyle = 'rgba(235,255,255,0.85)'; g.beginPath(); g.arc(cx, cy, Math.max(1.5, R * 0.025), 0, TAU); g.fill();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- state ---------- */
+const LABEL = { standby: 'STANDBY', active: 'ACTIVE', listening: 'LISTENING', thinking: 'THINKING', working: 'WORKING', speaking: 'SPEAKING' };
+let active = false;
+function setMode(m){
+  mode = m;
+  document.body.dataset.mode = m;
+  $('stat').textContent = LABEL[m];
+}
+function idleMode(){ setMode(active ? 'active' : 'standby'); }
+
+const log = $('log');
+function addLinks(p, links){
+  const box = document.createElement('div'); box.className = 'lk';
+  links.forEach(L => { const a = document.createElement('a'); a.href = L.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = L.label; box.appendChild(a); });
+  p.after(box); log.scrollTop = log.scrollHeight;
+}
+function addLog(who, text, links){
+  const p = document.createElement('p');
+  p.className = who;
+  p.textContent = (who === 'me' ? 'Tum: ' : 'Myra: ') + text;
+  log.appendChild(p);
+  if (links && links.length) addLinks(p, links);
+  while (log.children.length > 10) log.removeChild(log.firstChild);
+  log.scrollTop = log.scrollHeight;
+  return p;
+}
+
+/* ---------- start / stop ---------- */
+function startAI(greet = true, allowLive = true){
+  active = true;
+  $('startTxt').textContent = 'STOP';
+  setMode('active');
+  if (allowLive && liveWanted()){ startLive(); return; }
+  if (greet){ const g = localGreeting(); addLog('ai', g); speak(g); }
+}
+function stopAI(){
+  active = false;
+  $('startTxt').textContent = 'START';
+  stopMic(); stopSpeech(); stopLive(); interruptMyra();
+  setMode('standby');
+}
+$('start').onclick = () => active ? stopAI() : startAI();
+
+/* ---------- brain ---------- */
+const hist = [];
+function systemPrompt(){
+  const mem = store.get('mem', []);
+  const sk = SKILLS.filter(([k]) => store.get('skill_' + k, k !== 'yt')).map(s => s[1]).join(', ') || 'none';
+  return store.get('soul', DEFAULT_SOUL) +
+    (mem.length ? '\n\nUser ke baare mein yaad rakho:\n- ' + mem.join('\n- ') : '') +
+    '\n\nEnabled skills: ' + sk + '.' + CONTROL_SPEC + (store.get('auto', false) ? AUTO_SPEC : '') + tasksSummary() + goalsSummary() + contextNote();
+}
+/* ================= LLM ROUTER: Gemini + Claude (auto fallback) ================= */
+const GEM_DEFAULT = 'gemini-3.8-flash';
+const CLAUDE_DEFAULT = 'claude-sonnet-5-5';
+const LLM = { last: null, down: { gemini: 0, claude: 0 }, switchedAt: 0 };
+const hasKey = (p) => !!String(store.get(p === 'claude' ? 'ckey' : 'key', '')).trim();
+const hasAnyKey = () => hasKey('gemini') || hasKey('claude');
+const provName = (p) => p === 'claude' ? 'Claude' : 'Gemini';
+
+function lowerSchema(s){
+  if (Array.isArray(s)) return s.map(lowerSchema);
+  if (s && typeof s === 'object'){
+    const o = {};
+    for (const k in s) o[k] = (k === 'type' && typeof s[k] === 'string') ? s[k].toLowerCase() : lowerSchema(s[k]);
+    return o;
+  }
+  return s;
+}
+/* neutral messages: {role:'user',text} | {role:'model',text,calls?,_g?} | {role:'tool',results:[{id,gid,name,response}]} */
+function toGemini(msgs){
+  return msgs.map(m => {
+    if (m.role === 'user') return { role: 'user', parts: [{ text: m.text }].concat(m.image ? [{ inlineData: { mimeType: m.image.mime, data: m.image.data } }] : []) };
+    if (m.role === 'tool') return { role: 'user', parts: m.results.map(r => ({ functionResponse: Object.assign({ name: r.name, response: r.response }, r.gid ? { id: r.gid } : {}) })) };
+    if (m.calls && m.calls.length){
+      if (m._g) return { role: 'model', parts: m._g };
+      const parts = [].concat(m.text ? [{ text: m.text }] : [], m.calls.map(c => ({ functionCall: { name: c.name, args: c.args } })));
+      const first = parts.find(p => p.functionCall); if (first) first.thoughtSignature = 'skip_thought_signature_validator';
+      return { role: 'model', parts };
+    }
+    return { role: 'model', parts: [{ text: m.text || '' }] };
+  });
+}
+function toClaude(msgs){
+  const out = [];
+  const push = (role, content) => { if (!content.length) return; const last = out[out.length - 1]; if (last && last.role === role) last.content.push(...content); else out.push({ role, content }); };
+  msgs.forEach(m => {
+    if (m.role === 'user') push('user', (m.image ? [{ type: 'image', source: { type: 'base64', media_type: m.image.mime, data: m.image.data } }] : []).concat([{ type: 'text', text: m.text || '.' }]));
+    else if (m.role === 'tool') push('user', m.results.map(r => ({ type: 'tool_result', tool_use_id: r.id, content: JSON.stringify(r.response) })));
+    else {
+      const c = [];
+      if (m.text && m.text.trim()) c.push({ type: 'text', text: m.text });
+      (m.calls || []).forEach(k => c.push({ type: 'tool_use', id: k.id, name: k.name, input: k.args || {} }));
+      push('assistant', c);
+    }
+  });
+  while (out.length && out[0].role !== 'user') out.shift();
+  return out;
+}
+
+function finishGemini(parts, gm){
+  if (!parts.length) throw Object.assign(new Error('Gemini ne khaali jawab diya'), { provider: 'gemini' });
+  const text = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
+  const calls = parts.filter(p => p.functionCall).map(p => ({
+    id: String(p.functionCall.id || ('tu_' + uid())).replace(/[^a-zA-Z0-9_-]/g, '_'), gid: p.functionCall.id,
+    name: p.functionCall.name, args: p.functionCall.args || {}
+  }));
+  const sources = gm && gm.groundingChunks ? gm.groundingChunks.filter(c => c.web).map(c => ({ title: c.web.title || c.web.uri, uri: c.web.uri })).slice(0, 8) : [];
+  return { text, calls, sources, provider: 'gemini', _g: parts };
+}
+async function readGeminiStream(res, onText){
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', gm = null; const raw = [];
+  const handle = (block) => {
+    const data = block.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('');
+    if (!data || data === '[DONE]') return;
+    let j; try { j = JSON.parse(data); } catch { return; }
+    if (j.error) throw Object.assign(new Error(j.error.message || 'stream error'), { provider: 'gemini' });
+    const c = j.candidates && j.candidates[0]; if (!c) return;
+    if (c.groundingMetadata) gm = c.groundingMetadata;
+    ((c.content && c.content.parts) || []).forEach(p => { raw.push(p); if (p.text && !p.thought) onText(p.text); });
+  };
+  for (;;){
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let i; while ((i = buf.indexOf('\n\n')) >= 0){ handle(buf.slice(0, i)); buf = buf.slice(i + 2); }
+  }
+  if (buf.trim()) handle(buf);
+  const parts = [];
+  raw.forEach(p => {
+    const last = parts[parts.length - 1], plain = (x) => x && x.text !== undefined && !x.thought && !x.thoughtSignature && !x.functionCall;
+    if (plain(p) && plain(last)) last.text += p.text; else parts.push(Object.assign({}, p));
+  });
+  return finishGemini(parts, gm);
+}
+async function callGemini({ system, msgs, tools, grounded, onText, signal, maxTokens }){
+  const key = String(store.get('key', '')).trim();
+  if (!key) throw Object.assign(new Error('NOKEY'), { provider: 'gemini' });
+  const want = String(store.get('model', '') || GEM_DEFAULT).trim();
+  const cands = [want, GEM_DEFAULT, 'gemini-3.5-flash-lite'].filter((m, i, a) => m && a.indexOf(m) === i);
+  let lastErr;
+  for (const model of cands){
+    for (const withThink of (/^gemini-3/.test(model) ? [true, false] : [false])){
+      const body = { systemInstruction: { parts: [{ text: system }] }, contents: toGemini(msgs) };
+      if (grounded) body.tools = [{ google_search: {} }];
+      else if (tools && tools.length) body.tools = [{ functionDeclarations: tools }];
+      const gen = {}; if (maxTokens) gen.maxOutputTokens = maxTokens; if (withThink) gen.thinkingConfig = { thinkingLevel: 'low' };
+      if (Object.keys(gen).length) body.generationConfig = gen;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${onText ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
+      let res;
+      try { res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }); }
+      catch (e){ throw Object.assign(e, { provider: 'gemini' }); }
+      if (res.ok){
+        try {
+          if (onText && /event-stream/i.test(res.headers.get('content-type') || '')) return await readGeminiStream(res, onText);
+          const data = await res.json(), cand = data.candidates && data.candidates[0];
+          const r = finishGemini((cand && cand.content && cand.content.parts) || [], cand && cand.groundingMetadata);
+          if (onText && r.text) onText(r.text);
+          return r;
+        } catch (e){ if (!e.provider) e.provider = 'gemini'; throw e; }
+      }
+      const data = await res.json().catch(() => ({}));
+      const msg = (data && data.error && data.error.message) || String(res.status);
+      lastErr = Object.assign(new Error(msg), { status: res.status, provider: 'gemini' });
+      if (withThink && res.status === 400 && /thinking/i.test(msg)) continue;
+      const retryModel = res.status === 404 || (res.status === 403 && /model|access|limited/i.test(msg)) || (res.status === 400 && /not (found|supported)|no longer/i.test(msg));
+      if (!retryModel) throw lastErr;
+      break;
+    }
+  }
+  throw lastErr;
+}
+
+async function readClaudeStream(res, onText){
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', stop = ''; const blocks = [];
+  const handle = (block) => {
+    let ev = '', data = '';
+    block.split('\n').forEach(l => { if (l.startsWith('event:')) ev = l.slice(6).trim(); else if (l.startsWith('data:')) data += l.slice(5).trim(); });
+    if (!data) return;
+    let d; try { d = JSON.parse(data); } catch { return; }
+    if (ev === 'error' || d.type === 'error') throw Object.assign(new Error((d.error && d.error.message) || 'stream error'), { provider: 'claude' });
+    if (d.type === 'content_block_start'){ const b = Object.assign({}, d.content_block); if (b.type === 'tool_use') b._json = ''; if (b.type === 'text') b.text = b.text || ''; blocks[d.index] = b; }
+    else if (d.type === 'content_block_delta'){
+      const b = blocks[d.index]; if (!b) return;
+      if (d.delta.type === 'text_delta'){ b.text += d.delta.text; onText(d.delta.text); }
+      else if (d.delta.type === 'input_json_delta') b._json += d.delta.partial_json;
+    } else if (d.type === 'content_block_stop'){ const b = blocks[d.index]; if (b && b.type === 'tool_use'){ try { b.input = b._json ? JSON.parse(b._json) : {}; } catch { b.input = {}; } } }
+    else if (d.type === 'message_delta' && d.delta && d.delta.stop_reason) stop = d.delta.stop_reason;
+  };
+  for (;;){
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+    let i; while ((i = buf.indexOf('\n\n')) >= 0){ handle(buf.slice(0, i)); buf = buf.slice(i + 2); }
+  }
+  if (buf.trim()) handle(buf);
+  return { content: blocks.filter(Boolean), stop_reason: stop };
+}
+async function callClaude({ system, msgs, tools, grounded, onText, signal, maxTokens }){
+  const key = String(store.get('ckey', '')).trim();
+  if (!key) throw Object.assign(new Error('NOKEY'), { provider: 'claude' });
+  const model = String(store.get('cmodel', '') || CLAUDE_DEFAULT).trim();
+  const body = { model, max_tokens: maxTokens || 8000, system, messages: toClaude(msgs) };
+  const tl = [];
+  if (tools && tools.length) tools.forEach(t => tl.push({ name: t.name, description: t.description || t.name, input_schema: t.parameters ? lowerSchema(t.parameters) : { type: 'object', properties: {} } }));
+  if (grounded) tl.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 5 });
+  if (tl.length) body.tools = tl;
+  const stream = !!onText && !grounded; if (stream) body.stream = true;
+  let res, data;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify(body), signal
+    });
+    if (!res.ok) data = await res.json().catch(() => ({}));
+    else if (stream && /event-stream/i.test(res.headers.get('content-type') || '')) data = await readClaudeStream(res, onText);
+    else { data = await res.json(); if (onText){ const tx = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); if (tx) onText(tx); } }
+  } catch (e){ throw Object.assign(e, { provider: 'claude' }); }
+  if (!res.ok) throw Object.assign(new Error((data && data.error && data.error.message) || String(res.status)), { status: res.status, provider: 'claude' });
+  const blocks = data.content || [];
+  const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
+  const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, name: b.name, args: b.input || {} }));
+  const seen = new Set(), sources = [];
+  const addSrc = (u, t) => { if (u && !seen.has(u)){ seen.add(u); sources.push({ title: t || u, uri: u }); } };
+  blocks.forEach(b => {
+    if (b.type === 'text' && b.citations) b.citations.forEach(c => addSrc(c.url, c.title));
+    if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) b.content.forEach(c => addSrc(c.url, c.title));
+  });
+  if (!text.trim() && !calls.length) throw Object.assign(new Error('Claude ne khaali jawab diya' + (data.stop_reason ? ' (' + data.stop_reason + ')' : '')), { provider: 'claude' });
+  return { text, calls, sources: sources.slice(0, 8), provider: 'claude' };
+}
+
+function providerOrder(){
+  const pri = store.get('llm_primary', 'gemini') === 'claude' ? 'claude' : 'gemini';
+  const sec = pri === 'gemini' ? 'claude' : 'gemini';
+  let list = [pri]; if (store.get('llm_fb', true)) list.push(sec);
+  list = list.filter(hasKey);
+  if (!list.length) list = [pri, sec].filter(hasKey);
+  const now = Date.now();
+  list.sort((a, b) => (LLM.down[a] > now) - (LLM.down[b] > now));
+  return list;
+}
+async function llmCall(opts){
+  const order = providerOrder();
+  if (!order.length) throw new Error('NOKEY');
+  const errs = [];
+  let emitted = false;
+  const o = Object.assign({}, opts);
+  if (opts.onText) o.onText = (d) => { emitted = true; opts.onText(d); };
+  for (const p of order){
+    try {
+      const r = await (p === 'gemini' ? callGemini(o) : callClaude(o));
+      LLM.down[p] = 0;
+      if (errs.length && (LLM.last !== p || Date.now() - LLM.switchedAt > 60000)){
+        LLM.switchedAt = Date.now();
+        toast(provName(errs[0].provider || order[0]) + ' nahi chala (' + String(errs[0].message).slice(0, 60) + '). ' + provName(p) + ' se jawab diya.');
+      }
+      LLM.last = p; paintProv();
+      r.fallback = errs.length > 0;
+      return r;
+    } catch (e){
+      if (e && e.name === 'AbortError') throw e;
+      e.provider = e.provider || p; errs.push(e);
+      if (e instanceof TypeError || [401, 403, 408, 429].includes(e.status) || e.status >= 500) LLM.down[p] = Date.now() + 180000;
+      if (emitted) break;   // text already shown/spoken: don't repeat it from another AI
+    }
+  }
+  const e = errs[0];
+  if (errs.length > 1) e.message = errs.map(x => provName(x.provider) + ': ' + x.message).join(' | ');
+  throw e;
+}
+function llmErrText(e){
+  const m = (e && e.message) || String(e);
+  if (m === 'NOKEY') return 'Setting mein Gemini ya Claude ki API key daalo.';
+  if (e instanceof TypeError && !m.includes(' | ')) return 'Network error: AI tak request nahi pahunchi. Key aur internet check karo. (Sandbox page bahar ka network block karta hai. Download wali file HTTPS ya localhost par chalao.)';
+  return 'API error: ' + m;
+}
+function thinkDemo(text){ return `Demo mode: asli jawab ke liye Setting mein Gemini ya Claude ki API key daalo. Tumne kaha: "${text}"`; }
+async function testProvider(p){
+  toast(provName(p) + ' test ho raha hai...');
+  try {
+    const r = await (p === 'claude' ? callClaude : callGemini)({ system: 'Reply with the single word OK.', msgs: [{ role: 'user', text: 'ping' }] });
+    toast(provName(p) + ' chal raha hai: ' + (r.text || 'ok').trim().slice(0, 40));
+  } catch (e){ toast(provName(p) + ' error: ' + (e.message === 'NOKEY' ? 'API key nahi daali' : (e instanceof TypeError ? 'network nahi pahunch raha' : e.message))); }
+}
+function paintProv(){
+  const el = document.getElementById('prov');
+  let t = !navigator.onLine ? ' \u00b7 OFFLINE' : (live.on ? ' \u00b7 GEMINI LIVE' : (live.connecting ? ' \u00b7 LIVE...' : (LLM.last ? ' \u00b7 ' + LLM.last.toUpperCase() : '')));
+  if (typeof cam !== 'undefined' && cam.on) t += ' \u00b7 CAM';
+  if (el) el.textContent = t.replace(/^ \u00b7 /, '');
+  const h2 = document.getElementById('ag-hud-ai');
+  if (h2) h2.textContent = 'AI: ' + (LLM.last ? LLM.last.toUpperCase() : (hasAnyKey() ? providerOrder()[0].toUpperCase() : '-'));
+}
+
+/* ================= GEMINI LIVE (real-time voice over WebSocket) ================= */
+const LIVE_DEFAULT = 'gemini-3.8-live';
+const LIVE_NOTE = '\n\nVOICE MODE: Tum abhi awaaz par seedhi baat kar rahi ho. Chhote, bolchaal wale jawab do (1-3 vaakya). Markdown, list ya emoji nahi. User Hindi ya Hinglish bole to usi mein jawab do.';
+const live = { on: false, connecting: false, ws: null, inCtx: null, outCtx: null, stream: null, nodes: [], next: 0, srcs: new Set(), lvl: 0, inLvl: 0, muted: false, inTxt: '', outTxt: '', ready: false, chunks: 0, played: 0, poll: 0, model: '' };
+const liveWanted = () => {
+  const vm = store.get('voicemode', 'auto');
+  if (vm === 'live') return hasKey('gemini');
+  if (vm !== 'auto') return false;
+  return !!store.get('live', true) && hasKey('gemini');
+};
+const b64FromBytes = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const bytesFromB64 = (b) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+function liveSend(o){ if (live.ws && live.ws.readyState === 1) live.ws.send(JSON.stringify(o)); }
+function liveSetup(variant){
+  live.model = String(store.get('livemodel', '') || LIVE_DEFAULT).trim().replace(/^models\//, '');
+  const voice = store.get('livevoice', '');
+  const gen = { responseModalities: ['AUDIO'] };
+  if (voice) gen.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } };
+  const setup = {
+    model: 'models/' + live.model,
+    systemInstruction: { parts: [{ text: systemPrompt() + LIVE_NOTE }] },
+    tools: [{ functionDeclarations: TOOLS[0].functionDeclarations }],
+    inputAudioTranscription: {}, outputAudioTranscription: {}
+  };
+  const sp = store.get('livespeed', '');
+  if (sp) setup.realtimeInputConfig = { automaticActivityDetection: { silenceDurationMs: sp === 'fast' ? 400 : 1000, prefixPaddingMs: 20 } };
+  if (variant === 'flat'){ setup.responseModalities = gen.responseModalities; if (gen.speechConfig) setup.speechConfig = gen.speechConfig; }
+  else setup.generationConfig = gen;
+  return { setup };
+}
+async function liveText(data){ return typeof data === 'string' ? data : (data instanceof Blob ? await data.text() : new TextDecoder().decode(data)); }
+function liveConnect(variant){
+  return new Promise((resolve, reject) => {
+    const key = String(store.get('key', '')).trim();
+    const base = store.get('liveurl', '') || 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
+    let ws;
+    try { ws = new WebSocket(base + '?key=' + encodeURIComponent(key)); } catch (e){ return reject(e); }
+    live.ws = ws; let done = false;
+    const fail = (why) => { if (!done){ done = true; reject(new Error(why)); } };
+    ws.onopen = () => ws.send(JSON.stringify(liveSetup(variant)));
+    ws.onmessage = async (ev) => {
+      if (done){ liveOnMessage(ev); return; }
+      let m; try { m = JSON.parse(await liveText(ev.data)); } catch { return; }
+      if (m.setupComplete){ done = true; live.ready = true; resolve(); }
+      else if (m.error) fail((m.error.message || 'Live setup error') + '');
+    };
+    ws.onerror = () => fail('Live connection error');
+    ws.onclose = (e) => { if (!done) fail('Live band hua (' + e.code + ')' + (e.reason ? ': ' + e.reason : '')); else liveClosed(e); };
+  });
+}
+async function liveStartMic(){
+  live.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const ctx = live.inCtx; await ctx.resume();
+  const src = ctx.createMediaStreamSource(live.stream), ratio = ctx.sampleRate / 16000;
+  const zero = ctx.createGain(); zero.gain.value = 0; zero.connect(ctx.destination);
+  live.nodes = [src, zero];
+  const onPcm = (f32) => {
+    let sum = 0; for (let i = 0; i < f32.length; i++) sum += f32[i] * f32[i];
+    live.inLvl = Math.sqrt(sum / f32.length);
+    if (live.muted || !live.ready || !live.on && !live.connecting) return;
+    const n = Math.floor(f32.length / ratio), out = new Int16Array(n);
+    for (let i = 0; i < n; i++){
+      const a = Math.floor(i * ratio), b = Math.min(f32.length, Math.floor((i + 1) * ratio));
+      let s = 0; for (let j = a; j < b; j++) s += f32[j];
+      const v = Math.max(-1, Math.min(1, s / Math.max(1, b - a)));
+      out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+    }
+    liveSend({ realtimeInput: { audio: { data: b64FromBytes(new Uint8Array(out.buffer)), mimeType: 'audio/pcm;rate=16000' } } });
+    live.chunks++;
+  };
+  try {
+    const code = "class P extends AudioWorkletProcessor{constructor(){super();this.b=[];this.n=0}process(i){const c=i[0]&&i[0][0];if(c){this.b.push(new Float32Array(c));this.n+=c.length;if(this.n>=2048){const o=new Float32Array(this.n);let k=0;for(const x of this.b){o.set(x,k);k+=x.length}this.b=[];this.n=0;this.port.postMessage(o,[o.buffer])}}return true}}registerProcessor('myra-cap',P)";
+    const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+    await ctx.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+    const node = new AudioWorkletNode(ctx, 'myra-cap'); node.port.onmessage = (e) => onPcm(e.data);
+    src.connect(node); node.connect(zero); live.nodes.push(node);
+  } catch {
+    const sp = ctx.createScriptProcessor(4096, 1, 1);
+    sp.onaudioprocess = (e) => onPcm(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(sp); sp.connect(zero); live.nodes.push(sp);
+  }
+}
+function livePlay(b64){
+  const u8 = bytesFromB64(b64), n = u8.length >> 1; if (!n) return;
+  const ctx = live.outCtx; if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const dv = new DataView(u8.buffer, u8.byteOffset, n * 2), f = new Float32Array(n); let sum = 0;
+  for (let i = 0; i < n; i++){ const v = dv.getInt16(i * 2, true) / 32768; f[i] = v; sum += v * v; }
+  live.lvl = Math.max(live.lvl, Math.sqrt(sum / n));
+  const buf = ctx.createBuffer(1, n, 24000); buf.copyToChannel(f, 0);
+  const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination);
+  const t = Math.max(ctx.currentTime + 0.03, live.next); s.start(t); live.next = t + buf.duration;
+  live.srcs.add(s); s.onended = () => live.srcs.delete(s); live.played++;
+}
+function liveStopPlayback(){ live.srcs.forEach(s => { try { s.stop(); } catch {} }); live.srcs.clear(); live.next = 0; }
+function liveFlushUser(){ const t = live.inTxt.trim(); live.inTxt = ''; if (t){ addLog('me', t); hist.push({ role: 'user', text: t }); } }
+function liveFlush(interrupted){
+  liveFlushUser();
+  const t = live.outTxt.trim(); live.outTxt = '';
+  if (t){ addLog('ai', t + (interrupted ? ' ...' : '')); hist.push({ role: 'model', text: t }); }
+}
+async function liveOnMessage(ev){
+  let m; try { m = JSON.parse(await liveText(ev.data)); } catch { return; }
+  const sc = m.serverContent;
+  if (sc){
+    if (sc.inputTranscription && sc.inputTranscription.text) live.inTxt += sc.inputTranscription.text;
+    if (sc.interrupted){ liveStopPlayback(); liveFlush(true); }
+    if (sc.modelTurn && sc.modelTurn.parts) for (const p of sc.modelTurn.parts) if (p.inlineData && p.inlineData.data){ liveFlushUser(); livePlay(p.inlineData.data); }
+    if (sc.outputTranscription && sc.outputTranscription.text){ liveFlushUser(); live.outTxt += sc.outputTranscription.text; }
+    if (sc.turnComplete) liveFlush(false);
+  }
+  if (m.toolCall) liveTool(m.toolCall);
+  if (m.goAway) toast('Live session jald khatam hoga. Zaroorat ho to STOP phir START AI dabao.');
+}
+async function liveTool(tc){
+  liveFlushUser();
+  setMode('working');
+  const rs = [];
+  for (const fc of (tc.functionCalls || [])){
+    let r; try { r = await toolRouter(fc.name, fc.args || {}); } catch (e){ r = { ok: false, error: String((e && e.message) || e) }; }
+    rs.push({ id: fc.id, name: fc.name, response: r });
+  }
+  liveSend({ toolResponse: { functionResponses: rs } });
+}
+function liveCleanup(){
+  clearInterval(live.poll); live.poll = 0; if (typeof cam !== 'undefined') clearInterval(cam.timer);
+  live.on = false; live.connecting = false; live.ready = false; live.muted = false;
+  if (live.ws){ const w = live.ws; live.ws = null; w.onclose = w.onerror = w.onmessage = null; try { w.close(); } catch {} }
+  live.nodes.forEach(n => { try { n.disconnect(); } catch {} }); live.nodes = [];
+  if (live.stream){ live.stream.getTracks().forEach(t => t.stop()); live.stream = null; }
+  liveStopPlayback();
+  [live.inCtx, live.outCtx].forEach(c => { if (c){ try { c.close(); } catch {} } });
+  live.inCtx = live.outCtx = null; live.inTxt = ''; live.outTxt = ''; live.lvl = 0; live.inLvl = 0;
+}
+function liveClosed(e){
+  if (!live.on) return;
+  addLog('ai', 'Live connection band ho gaya' + (e && e.reason ? ': ' + e.reason : '') + '. Dobara START AI dabao.');
+  liveCleanup(); paintProv(); if (active) setMode('active'); else setMode('standby');
+}
+async function startLive(){
+  if (live.on || live.connecting) return true;
+  if (!hasKey('gemini')){ toast('Gemini Live ke liye Gemini API key chahiye.'); return false; }
+  live.connecting = true; paintProv(); setMode('thinking');
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    live.inCtx = new AC();
+    try { live.outCtx = new AC({ sampleRate: 24000 }); } catch { live.outCtx = new AC(); }
+    live.inCtx.resume(); live.outCtx.resume();
+    try { await liveConnect('std'); }
+    catch (e){
+      if (/\((1007|1008)\)|invalid|unknown name|cannot find field/i.test(e.message)){ if (live.ws){ const w = live.ws; live.ws = null; w.onclose = w.onerror = w.onmessage = null; try { w.close(); } catch {} } await liveConnect('flat'); }
+      else throw e;
+    }
+    await liveStartMic();
+    live.on = true; live.connecting = false;
+    live.poll = setInterval(() => {
+      if (!live.on) return;
+      live.lvl *= 0.82;
+      if (mode === 'working') return;
+      const speaking = live.outCtx && live.srcs.size > 0 && live.outCtx.currentTime < live.next - 0.02;
+      const m = speaking ? 'speaking' : (live.muted ? 'active' : 'listening');
+      if (mode !== m) setMode(m);
+    }, 100);
+    setMode('listening'); paintProv();
+    addLog('ai', 'Gemini Live ON (' + live.model + '). Seedha bolo, main sun rahi hoon. Beech mein tok sakte ho.');
+    camLiveTimer();
+    if (store.get('greet', true)) liveSend({ realtimeInput: { text: '[APP EVENT] Session abhi shuru hua. Chhota, garam greeting do (1-2 vaakya). Agar koi active goal ya pending task ho to uske baare mein ek halka follow-up sawal poochho, warna poochho ki din kaisa chal raha hai.' } });
+    return true;
+  } catch (e){
+    const denied = e && /permission|denied|notallowed/i.test((e.name || '') + ' ' + (e.message || ''));
+    liveCleanup(); paintProv();
+    addLog('ai', 'Gemini Live shuru nahi hua: ' + (denied ? 'mic ki permission nahi mili' : ((e && e.message) || e)) + '. Normal mode chal raha hai.');
+    setMode(active ? 'active' : 'standby');
+    return false;
+  }
+}
+function stopLive(){ if (!live.on && !live.connecting && !live.ws) return; liveCleanup(); paintProv(); setMode(active ? 'active' : 'standby'); }
+function liveToggleMute(){
+  live.muted = !live.muted;
+  if (live.muted) liveSend({ realtimeInput: { audioStreamEnd: true } });
+  $('mic').setAttribute('aria-pressed', String(live.muted));
+  toast(live.muted ? 'Mic mute. Phir dabao to unmute.' : 'Mic ON. Bolo.');
+}
+
+
+/* ================= FAST SPEECH PIPELINE (sentence by sentence) ================= */
+let speakGen = 0, run = null, lastLinks = null;
+function plainSpeech(t){
+  return String(t || '').replace(/```[\s\S]*?```/g, ' ').replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[*#_`~>|]/g, '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim();
+}
+async function elevenBlob(text, key){
+  const vid = store.get('xivoice', '21m00Tcm4TlvDq8ikWAM') || '21m00Tcm4TlvDq8ikWAM';
+  const model = normModel(store.get('ximodel', '')) || 'eleven_flash_v2_5';
+  const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(vid), {
+    method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' }, body: JSON.stringify({ text, model_id: model })
+  });
+  if (!res.ok){
+    let msg = res.status; try { const j = await res.json(); msg = (j.detail && (j.detail.message || j.detail)) || msg; } catch {}
+    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+  }
+  return await res.blob();
+}
+function makeSpeaker(){
+  stopSpeech();
+  const vm = store.get('voicemode', 'auto');
+  const savedXiKey = String(store.get('xikey', '')).trim();
+  const useEleven = vm === 'eleven' || (vm === 'auto' && !live.on);
+  const S = { gen: ++speakGen, buf: '', q: [], playing: false, ended: false, cancelled: false, warned: false, spoke: false,
+    xk: useEleven ? savedXiKey : '', on: !!store.get('voice', true) };
+  const finish = () => { if (!S.cancelled && !live.on && (mode === 'speaking' || mode === 'thinking' || mode === 'working')) idleMode(); };
+  const utter = (t) => new Promise((res) => {
+    if (!('speechSynthesis' in window)) return res();
+    try {
+      const u = new SpeechSynthesisUtterance(t); u.lang = store.get('lang', 'hi-IN');
+      u.onstart = () => { if (!S.cancelled) setMode('speaking'); }; u.onend = u.onerror = () => res();
+      speechSynthesis.speak(u);
+    } catch { res(); }
+  });
+  const playBlob = (blob) => new Promise((res) => {
+    const url = URL.createObjectURL(blob), a = new Audio(url); curAudio = a;
+    const done = () => { URL.revokeObjectURL(url); if (curAudio === a) curAudio = null; res(); };
+    a.onended = a.onerror = done; setMode('speaking');
+    a.play().catch(done);
+  });
+  S.pump = async () => {
+    if (S.playing || S.cancelled) return;
+    S.playing = true;
+    while (S.q.length && !S.cancelled){
+      const it = S.q.shift();
+      if (S.xk){
+        const r = await it.p;
+        if (S.cancelled) break;
+        if (r && !r.err) await playBlob(r);
+        else { if (!S.warned){ S.warned = true; toast((typeof xiErr === 'function' ? xiErr(r.err) : 'ElevenLabs error') + ' Browser voice use ho rahi hai.'); } await utter(it.t); }
+      } else await utter(it.t);
+    }
+    S.playing = false;
+    if (S.ended && !S.q.length) finish();
+  };
+  S.enqueue = (sentence) => {
+    const t = plainSpeech(sentence); if (!t || !S.on) return;
+    S.spoke = true;
+    S.q.push(S.xk ? { t, p: elevenBlob(t, S.xk).catch((err) => ({ err })) } : { t });
+    S.pump();
+  };
+  S.push = (d) => {
+    S.buf += d;
+    for (;;){
+      const m = /^([\s\S]{12,}?[.!?\u0964]+["')\]]*)\s+/.exec(S.buf);
+      if (m){ S.enqueue(m[1]); S.buf = S.buf.slice(m[0].length); continue; }
+      if (S.buf.length > 170){ const k = Math.max(S.buf.lastIndexOf(', ', 150), S.buf.lastIndexOf(' ', 150)); if (k > 40){ S.enqueue(S.buf.slice(0, k + 1)); S.buf = S.buf.slice(k + 1); continue; } }
+      break;
+    }
+  };
+  S.end = () => { if (S.buf.trim()) S.enqueue(S.buf); S.buf = ''; S.ended = true; if (!S.playing && !S.q.length) finish(); else S.pump(); };
+  S.cancel = () => { S.cancelled = true; S.q = []; S.buf = ''; stopSpeech(); };
+  return S;
+}
+async function speak(text){ const sp = makeSpeaker(); sp.push(String(text) + ' '); sp.end(); return sp; }
+function interruptMyra(){
+  if (run && !run.done){ try { run.ctl.abort(); } catch {} run.speaker.cancel(); run.done = true; }
+  stopSpeech(); busy = false;
+  if (!live.on) idleMode();
+}
+function setLine(el, text){ el.textContent = 'Myra: ' + text; log.scrollTop = log.scrollHeight; }
+
+function reminderAlert(){
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch {}
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext, c = new AC(), o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.value = 880; g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.exponentialRampToValueAtTime(0.25, c.currentTime + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.5);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.55); setTimeout(() => c.close(), 800);
+  } catch {}
+}
+
+/* ================= GOALS, APPROVED MEMORY, CONTEXT ================= */
+function goalsSummary(){
+  const g = store.get('goals', []).filter(x => x.status === 'active').slice(0, 6);
+  return g.length ? '\n\nUser ke active goals/projects (zaroorat par halka follow-up karo, har baar nahi):\n- ' + g.map(x => `${x.title}${x.notes ? ' (' + x.notes + ')' : ''} [id:${x.id}]`).join('\n- ') : '';
+}
+function contextNote(){
+  return '\n\nAbhi: ' + new Date().toLocaleString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '. ' +
+    (cam.on ? 'CAMERA ON hai: user jo dikhaye use dekh sakti ho.' : 'Camera band hai; kuch dikhana ho to user camera button dabaye.') + (navigator.onLine ? '' : ' Internet nahi hai.');
+}
+function paintMemQ(){
+  const box = $('memq'); if (!box) return;
+  const p = store.get('mem_pending', []);
+  if (!p.length){ box.hidden = true; return; }
+  $('memq-t').textContent = 'Yaad rakhun? "' + p[0].text + '"' + (p.length > 1 ? ' (+' + (p.length - 1) + ')' : '');
+  box.hidden = false;
+}
+$('memq-y').onclick = () => { const p = store.get('mem_pending', []); if (p[0]){ runTool('save_memory', { text: p[0].text, approved: true }); toast('Yaad rakh liya.'); } paintMemQ(); };
+$('memq-n').onclick = () => { const p = store.get('mem_pending', []); p.shift(); store.set('mem_pending', p); paintMemQ(); };
+paintMemQ();
+function localGreeting(){
+  const h = new Date().getHours();
+  const g = h < 5 ? 'Hey, itni raat ko jaag rahe ho?' : h < 12 ? 'Good morning!' : h < 17 ? 'Namaste!' : h < 21 ? 'Good evening!' : 'Hey, raat ho gayi!';
+  const goal = store.get('goals', []).find(x => x.status === 'active'), open = store.get('tasks', []).filter(t => !t.done).length;
+  return g + ' Main ready hoon. ' + (goal ? '"' + goal.title + '" par kaam kaisa chal raha hai?' : open ? 'Aaj tumhare ' + open + ' task baaki hain.' : 'Aaj ka din kaisa chal raha hai?');
+}
+
+/* ================= CAMERA ================= */
+const cam = { on: false, stream: null, facing: 'environment', timer: 0 };
+const VISION_RE = /(dekh|dikh|ye kya|yeh kya|kya hai (ye|yeh)|camera|scene|object|padh|read this|what is this|look at|kaisa lag)/i;
+function captureFrame(max){
+  const v = $('camv'); if (!cam.on || !v || !v.videoWidth) return null;
+  const s = Math.min(1, (max || 768) / Math.max(v.videoWidth, v.videoHeight)), c = document.createElement('canvas');
+  c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s);
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  return { mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.7).split(',')[1] };
+}
+function camLiveTimer(){
+  clearInterval(cam.timer);
+  if (cam.on && live.on) cam.timer = setInterval(() => { const f = captureFrame(640); if (f) liveSend({ realtimeInput: { video: { data: f.data, mimeType: f.mime } } }); }, 1000);
+}
+async function camStart(){
+  try {
+    cam.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cam.facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch (e){ toast('Camera nahi khula: ' + (/denied|permission|notallowed/i.test((e.name || '') + (e.message || '')) ? 'permission nahi mili.' : (e.message || e))); return false; }
+  const v = $('camv'); v.srcObject = cam.stream; try { await v.play(); } catch {}
+  cam.on = true; $('camwrap').hidden = false; $('cam').setAttribute('aria-pressed', 'true'); camLiveTimer(); paintProv();
+  return true;
+}
+function camStop(){
+  clearInterval(cam.timer);
+  if (cam.stream){ cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
+  cam.on = false; $('camwrap').hidden = true; $('cam').setAttribute('aria-pressed', 'false'); paintProv();
+}
+$('cam').onclick = () => cam.on ? camStop() : camStart().then(ok => { if (ok) toast('Camera ON. Kuch dikhao aur poochho "ye kya hai?"'); });
+$('camflip').onclick = async () => { cam.facing = cam.facing === 'environment' ? 'user' : 'environment'; if (cam.on){ camStop(); await camStart(); } };
+document.addEventListener('visibilitychange', () => { if (document.hidden && cam.on){ camStop(); toast('Camera band kiya (page chhup gaya).'); } });
+
+/* ================= TOOLS THAT NEED ASYNC WORK ================= */
+async function webSearchTool(a){
+  const q = String(a.query || '').trim();
+  if (!q) return { ok: false, error: 'query khaali hai' };
+  if (!navigator.onLine) return { ok: false, error: 'internet nahi hai' };
+  try {
+    const r = await llmCall({ system: 'Web search karke sawal ka sahi aur taaza jawab do. Hinglish, chhota (4-6 vaakya), source ka naam batao. Jo na mile use banao mat.', msgs: [{ role: 'user', text: q }], grounded: true, maxTokens: 900 });
+    return { ok: true, answer: (r.text || '').slice(0, 2500), sources: (r.sources || []).map(s => s.title).slice(0, 5) };
+  } catch (e){ return { ok: false, error: llmErrText(e) }; }
+}
+async function seeCameraTool(a){
+  if (!cam.on) return { ok: false, error: 'Camera band hai. User se camera button dabane ko kaho.' };
+  const img = captureFrame(768);
+  if (!img) return { ok: false, error: 'Frame abhi nahi mila, ek second baad try karo.' };
+  try {
+    const r = await llmCall({ system: 'Tum ek vision assistant ho. Image dekhkar sawal ka jawab Hinglish mein do, chhota aur sahi. Jo saaf na dikhe use andaza mat lagao, bolo ki saaf nahi dikh raha.', msgs: [{ role: 'user', text: String(a.question || 'Ye kya hai? Jo dikh raha hai bata do.'), image: img }], maxTokens: 600 });
+    return { ok: true, description: (r.text || '').slice(0, 1500) };
+  } catch (e){ return { ok: false, error: llmErrText(e) }; }
+}
+
+/* ================= OFFLINE BRAIN (basic tasks without internet) ================= */
+function offlineBrain(raw){
+  const t = String(raw || '').toLowerCase().trim();
+  const done = (text, links) => ({ handled: true, text, links });
+  if (/(kitne baje|abhi (ka )?(time|samay)|current time|what time)/.test(t)){ const d = new Date(), h = d.getHours(), mi = String(d.getMinutes()).padStart(2, '0'); return done('Abhi ' + ((h % 12) || 12) + ':' + mi + ' baje hain (' + (h < 5 ? 'raat' : h < 12 ? 'subah' : h < 17 ? 'dopahar' : h < 20 ? 'shaam' : 'raat') + ').'); }
+  if (/(aaj (ki )?(tarikh|date|din)|what.?s the date|aaj kaun sa din)/.test(t)) return done('Aaj ' + new Date().toLocaleDateString('hi-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' hai.');
+  if (/(yaad dila|remind|reminder|alarm)/.test(t) && !/(dikha|batao|kya|list)/.test(t)){
+    let mins = null, at = null;
+    const mm = t.match(/(\d+(?:\.\d+)?)\s*(minute|min|mins)/), hh = t.match(/(\d+(?:\.\d+)?)\s*(ghante|ghanta|ghnta|hour|hours|hr)/);
+    if (mm) mins = parseFloat(mm[1]); if (hh) mins = (mins || 0) + parseFloat(hh[1]) * 60;
+    const clock = t.match(/(\d{1,2})(?::(\d{2}))?\s*(baje|am|pm)/);
+    if (mins == null && clock){
+      let h = +clock[1]; const mi = clock[2] ? +clock[2] : 0;
+      if ((clock[3] === 'pm' || /(shaam|sham|raat|dopahar|evening|night|afternoon)/.test(t)) && h < 12) h += 12;
+      if (clock[3] === 'am' && h === 12) h = 0;
+      at = String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+    }
+    if (mins == null && !at) return done('Kab yaad dilaun? Jaise: "10 minute baad pani peene ka reminder" ya "5 baje meeting ka reminder".');
+    const what = t.replace(/(yaad dila(o|na|do)?|reminder|remind( me)?|alarm)/g, ' ').replace(/(\d+(?:\.\d+)?)\s*(minute|min|mins|ghante|ghanta|ghnta|hour|hours|hr)\s*(baad|mein|me|after)?/g, ' ')
+      .replace(/(\d{1,2})(?::\d{2})?\s*(baje|am|pm)/g, ' ').replace(/\b(ko|ka|ki|ke|par|pe|to|ye|kal|aaj|subah|shaam|sham|raat|dopahar|myra|please|mujhe)\b/g, ' ').replace(/\s+/g, ' ').trim() || 'Reminder';
+    const r = runTool('create_reminder', { text: what, minutes_from_now: mins != null ? mins : undefined, at_time: at || undefined });
+    return done(r.ok ? 'Theek hai, "' + what + '" ' + (mins != null ? Math.round(mins) + ' minute baad' : at + ' par') + ' yaad dilaungi (jab tak ye page khula hai).' : 'Reminder nahi ban paya: ' + r.error);
+  }
+  if (/(task|kaam|reminder).*(dikha|batao|kya|list)/.test(t)){
+    const open = store.get('tasks', []).filter(x => !x.done);
+    return done(open.length ? 'Tumhare ' + open.length + ' task baaki hain: ' + open.slice(0, 6).map(x => x.text).join(', ') + '.' : 'Abhi koi task baaki nahi hai.');
+  }
+  if (/(goal|lakshya|target).*(add|banao|set|rakho|jodo)/.test(t)){
+    const title = t.replace(/(goal|lakshya|target)/g, ' ').replace(/(add|banao|set|rakho|jodo|karo|kar do)/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!title) return done('Goal kya hai? Jaise: "goal add karo roz 30 min coding".');
+    const r = runTool('set_goal', { title }); return done(r.ok ? 'Goal save kar liya: "' + title + '". Main time-time par poochhti rahungi.' : 'Goal save nahi hua: ' + r.error);
+  }
+  if (/(goal|lakshya|target).*(dikha|batao|kya|list)/.test(t)){
+    const g = store.get('goals', []).filter(x => x.status === 'active');
+    return done(g.length ? 'Tumhare goals: ' + g.slice(0, 6).map(x => x.title).join(', ') + '.' : 'Abhi koi active goal nahi hai.');
+  }
+  if (/yaad rakh(o|na)/.test(t)){
+    const text = t.replace(/(myra|ye|yeh|ki baat|ke liye|mujhe|please)/g, ' ').replace(/yaad rakh(o|na)/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text) return done('Kya yaad rakhun?');
+    const r = runTool('save_memory', { text, approved: true }); return done(r.ok ? 'Yaad rakh liya: "' + text + '".' : 'Save nahi hua: ' + r.error);
+  }
+  if (/(note|likh)/.test(t) && /(note|likh)\s*(kar|karo|lo|do|le)?/.test(t) && !/(dikha|batao)/.test(t)){
+    const text = t.replace(/(note|likh(o|na)?)\s*(kar|karo|lo|do|le)?/g, ' ').replace(/\b(myra|ye|yeh|please|mujhe)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text) return done('Note mein kya likhun?');
+    const r = runTool('create_note', { text }); return done(r.ok ? 'Note likh liya: "' + text + '".' : 'Note nahi bana: ' + r.error);
+  }
+  const call = t.match(/^(.+?)\s+ko\s+(call|phone|fone|dial)/);
+  if (call){
+    const q = call[1].replace(/\b(myra|please|ek)\b/g, '').trim(), cs = store.get('contacts', []);
+    const c = cs.find(x => x.name.toLowerCase() === q) || cs.find(x => x.name.toLowerCase().includes(q) || q.includes(x.name.toLowerCase()));
+    return c ? done(c.name + ' ko call ka button neeche hai. Tap karo.', [{ url: 'tel:+' + c.phone, label: 'Call ' + c.name }]) : done('"' + q + '" contact nahi mila. Shared Hub mein contact add karo.');
+  }
+  if (/^(hi+|hello|hey|namaste|good (morning|evening|night))\b/.test(t)) return done('Hey! Main yahin hoon. Abhi internet nahi hai, par basic kaam kar sakti hoon.');
+  if (/(thanks|thank you|shukriya|dhanyavaad|dhanyavad)/.test(t)) return done('Koi baat nahi!');
+  return { handled: false, text: 'Abhi internet nahi hai, isliye main sirf basic kaam kar sakti hoon: reminder, note, tasks, goals, time/date aur call. Baaki sab internet aane par.' };
+}
+addEventListener('online', () => { paintProv(); toast('Internet wapas aa gaya.'); });
+addEventListener('offline', () => { paintProv(); toast('Internet nahi hai. Offline mode: reminder, note, tasks, goals, time aur call chalenge.'); });
+
+$('orb').onclick = () => { if (!live.on) interruptMyra(); };
+/* ================= KILL SWITCH (band karo ya delete karo) ================= */
+function killAll(quiet){
+  try { interruptMyra(); } catch {}
+  try { stopMic(); } catch {}
+  try { stopLive(); } catch {}
+  try { camStop(); } catch {}
+  try { if (active) stopAI(); } catch {}
+  try { if (window.MYRA_AGENTS && window.MYRA_AGENTS.kill) window.MYRA_AGENTS.kill(); } catch {}
+  store.set('auto', false); const au = $('auto'); if (au) au.setAttribute('aria-checked', 'false');
+  if (!quiet) toast('Kill: mic, camera, Live, awaaz aur auto mode sab band.');
+}
+function openKill(){ $('kill-s1').hidden = false; $('kill-s2').hidden = true; $('killm').hidden = false; $('kill-stop').focus(); }
+function closeKill(){ $('killm').hidden = true; }
+function wipeAll(){
+  try { Object.keys(localStorage).filter(k => k.indexOf('myra_') === 0).forEach(k => localStorage.removeItem(k)); } catch {}
+  try { sessionStorage.clear(); } catch {}
+  try { if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {}); } catch {}
+  try { if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {}); } catch {}
+}
+function deleteMyra(){
+  killAll(true); wipeAll(); closeKill();
+  const f = document.createElement('div'); f.id = 'farewell';
+  const card = document.createElement('div'); card.className = 'fcard';
+  const h = document.createElement('h2'); h.textContent = 'MYRA DELETE HO GAYI';
+  const p1 = document.createElement('p'); p1.textContent = 'Is browser se saari saved cheezein hat gayi: API keys, memory, goals, notes, tasks, contacts, agents ka log aur settings.';
+  const p2 = document.createElement('p'); p2.textContent = 'Termux se chalate ho to files hataane ke liye Termux mein ye chalao:';
+  const c = document.createElement('code'); c.textContent = 'bash ~/myra/uninstall.sh';
+  const b = document.createElement('button'); b.textContent = 'NAYA SHURU KARO'; b.onclick = () => { wipeAll(); location.reload(); };
+  card.append(h, p1, p2, c, b); f.appendChild(card); document.body.appendChild(f); b.focus();
+}
+$('kill').onclick = openKill;
+$('kill-x').onclick = closeKill;
+$('killm').addEventListener('click', (e) => { if (e.target === $('killm')) closeKill(); });
+$('kill-stop').onclick = () => { killAll(); closeKill(); };
+$('kill-del').onclick = () => { $('kill-s1').hidden = true; $('kill-s2').hidden = false; $('kill-no').focus(); };
+$('kill-no').onclick = () => { $('kill-s2').hidden = true; $('kill-s1').hidden = false; };
+$('kill-yes').onclick = deleteMyra;
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('killm').hidden) closeKill(); });
+
+
+/* ---------- autonomous mode ---------- */
+const CONTROL_SPEC = `
+
+MYRA CONTROLLER
+- Tum sab agents ki boss ho. User ka kaam sahi agent ko delegate_to se do: nova (apps aur links kholna), pulse (aaj ki khabar), forge (app banana), byte (coding), atlas (tasks aur reminders), ring (message bhejna, call lagana, contacts).
+- Seedhi baatcheet, sawal aur salah tum khud karo. Agent tabhi jab uska kaam ho.
+- Agent ka result aane ke baad usi ke aadhar par chhota jawab do. Agent fail ho to saaf batao.
+- Message, call ya link tabhi gaya mano jab user ne button tap kiya ho. Ring ya Nova ke buttons Agents card mein khulte hain, user ko batao ki button tap karo.
+- Khud web search, SMS ya call nahi kar sakti, uske liye agent use karo. Asli phone network par aane wali call receive karna abhi possible nahi.
+- Taaza jaankari, khabar, mausam ya kisi fact ke liye web_search use karo, apni yaad se mat bolo. Camera par kuch dikhaye to see_camera use karo (ya seedhi image mili ho to usse).
+- Memory: user ki pasand ya jaankari tabhi permanent hogi jab user haan kahe. Pehle poochho "Kya main ye yaad rakhun?" aur save_memory approved=false se bhejo. User saaf kahe "yaad rakho" tabhi approved=true.
+- Goals aur projects: user ke goals set_goal se save karo (pehle poochho) aur baatcheet mein halka follow-up karo, dabaav ya guilt ke bina.`;
+const AUTO_SPEC = `
+
+AUTONOMOUS MODE (ON)
+- Goal milne par use chhote sub-tasks mein khud todo, aur zaroorat ho to tools khud chalao. Har step ke baad tool ka result dekho, galti ho to khud sudharo, phir agla step lo.
+- Tools: save_memory (user ki pasand ya goal), create_note, create_reminder (minutes_from_now ya at_time HH:MM 24h), list_tasks, complete_task, delegate_to.
+- Kisi kaam ko ho gaya tabhi kaho jab tool ne ok:true diya. Fail hua to saaf batao.
+- Reminders sirf tab bajte hain jab ye page khula ho. Reminder banate waqt ek baar ye batao.
+- Khud web search, SMS ya call nahi kar sakti. Inka dikhava mat karo.
+- Sirf upar wale local tools chalao. Koi destructive ya bahar ka kaam nahi.
+- APP EVENT se shuru hone wale messages app ke hain, user ke nahi. Unhe chhota aur natural rakho, koi pressure ya guilt nahi.
+- Screen ya camera ke baare mein wahi bolo jo sach mein diya gaya ho.`;
+const uid = () => Math.random().toString(36).slice(2, 8);
+const TOOLS = [{ functionDeclarations: [
+  { name: 'save_memory', description: 'User ki pasand ya zaroori baat yaad rakhne ke liye. approved=true tabhi jab user ne saaf kaha ho ki yaad rakho; warna false (user ki approval baad mein aayegi)', parameters: { type: 'OBJECT', properties: { text: { type: 'STRING' }, approved: { type: 'BOOLEAN' } }, required: ['text'] } },
+  { name: 'create_note', description: 'Ek note save karo', parameters: { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] } },
+  { name: 'create_reminder', description: 'Reminder ya task banao. Time dena ho to minutes_from_now ya at_time (24h HH:MM) do.', parameters: { type: 'OBJECT', properties: { text: { type: 'STRING' }, minutes_from_now: { type: 'NUMBER' }, at_time: { type: 'STRING' } }, required: ['text'] } },
+  { name: 'list_tasks', description: 'Saare tasks, reminders aur notes dikhao' },
+  { name: 'complete_task', description: 'Task ko done mark karo', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } }, required: ['id'] } },
+  { name: 'delegate_to', description: 'Kaam specialist agent ko do: nova (apps/links kholna), pulse (aaj ki khabar), forge (app banana), byte (coding), atlas (tasks), ring (message bhejna, call lagana, contacts)', parameters: { type: 'OBJECT', properties: { agent: { type: 'STRING' }, task: { type: 'STRING' } }, required: ['agent', 'task'] } },
+  { name: 'web_search', description: 'Internet se taaza jaankari, khabar, mausam ya kisi bhi fact ka jawab dhoondo', parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] } },
+  { name: 'see_camera', description: 'Camera se ab jo dikh raha hai use dekhkar sawal ka jawab do', parameters: { type: 'OBJECT', properties: { question: { type: 'STRING' } } } },
+  { name: 'set_goal', description: 'User ka goal ya project save karo (pehle user se poochho)', parameters: { type: 'OBJECT', properties: { title: { type: 'STRING' }, notes: { type: 'STRING' } }, required: ['title'] } },
+  { name: 'update_goal', description: 'Goal ki progress notes ya status (active ya done) update karo', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' }, notes: { type: 'STRING' }, status: { type: 'STRING' } }, required: ['id'] } },
+  { name: 'list_goals', description: 'Saare goals aur projects dikhao' }
+] }];
+function tasksSummary(){
+  const open = store.get('tasks', []).filter(t => !t.done);
+  return open.length ? '\n\nOpen tasks:\n- ' + open.map(t => `${t.text}${t.due ? ' (' + new Date(t.due).toLocaleString() + ')' : ''} [id:${t.id}]`).join('\n- ') : '';
+}
+function logAct(t){ const a = store.get('acts', []); a.unshift({ t, ts: Date.now() }); store.set('acts', a.slice(0, 20)); }
+function dueFrom(a){
+  if (typeof a.minutes_from_now === 'number' && isFinite(a.minutes_from_now)) return Date.now() + a.minutes_from_now * 60000;
+  if (typeof a.at_time === 'string' && /^[0-9]{1,2}:[0-9]{2}$/.test(a.at_time)){
+    const [h, m] = a.at_time.split(':').map(Number);
+    if (h > 23 || m > 59) return null;
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  return null;
+}
+function runTool(name, a){
+  try {
+    const text = String(a.text || '').trim();
+    if (name === 'save_memory'){
+      if (!text) return { ok: false, error: 'text khaali hai' };
+      if (a.approved === true){
+        const m = store.get('mem', []); if (!m.includes(text)) m.push(text);
+        if (!store.set('mem', m.slice(-60))) return { ok: false, error: 'storage blocked hai' };
+        store.set('mem_pending', store.get('mem_pending', []).filter(x => x.text !== text)); paintMemQ();
+        logAct('Memory saved: ' + text); return { ok: true, saved: true };
+      }
+      const pend = store.get('mem_pending', []); if (!pend.some(x => x.text === text)) pend.push({ id: uid(), text, ts: Date.now() });
+      if (!store.set('mem_pending', pend.slice(-10))) return { ok: false, error: 'storage blocked hai' };
+      paintMemQ();
+      return { ok: true, pending: true, note: 'Abhi save nahi hui. User se poochho: Kya main ye yaad rakhun? Panel mein Haan/Na button dikh raha hai.' };
+    }
+    if (name === 'set_goal'){
+      const t = String(a.title || a.text || '').trim(); if (!t) return { ok: false, error: 'goal ka naam khaali hai' };
+      const g = store.get('goals', []); g.unshift({ id: uid(), title: t, notes: String(a.notes || ''), status: 'active', created: Date.now(), lastCheck: 0 });
+      if (!store.set('goals', g.slice(0, 40))) return { ok: false, error: 'storage blocked hai' };
+      logAct('Goal: ' + t); return { ok: true, id: g[0].id };
+    }
+    if (name === 'update_goal'){
+      const g = store.get('goals', []), x = g.find(z => z.id === a.id) || g.find(z => a.id && z.title.toLowerCase().includes(String(a.id).toLowerCase()));
+      if (!x) return { ok: false, error: 'goal nahi mila' };
+      if (a.notes != null) x.notes = String(a.notes); if (a.status === 'done' || a.status === 'active') x.status = a.status; x.lastCheck = Date.now();
+      if (!store.set('goals', g)) return { ok: false, error: 'storage blocked hai' };
+      logAct('Goal update: ' + x.title); return { ok: true };
+    }
+    if (name === 'list_goals') return { ok: true, goals: store.get('goals', []).map(g => ({ id: g.id, title: g.title, notes: g.notes, status: g.status })) };
+    if (name === 'create_note'){
+      if (!text) return { ok: false, error: 'text khaali hai' };
+      const n = store.get('notes', []); n.unshift({ id: uid(), text, ts: Date.now() });
+      if (!store.set('notes', n.slice(0, 100))) return { ok: false, error: 'storage blocked hai' };
+      logAct('Note saved: ' + text); return { ok: true };
+    }
+    if (name === 'create_reminder'){
+      if (!text) return { ok: false, error: 'text khaali hai' };
+      const due = dueFrom(a), ts = store.get('tasks', []), task = { id: uid(), text, due, done: false, fired: false };
+      ts.unshift(task);
+      if (!store.set('tasks', ts)) return { ok: false, error: 'storage blocked hai' };
+      logAct('Reminder: ' + text + (due ? ' @ ' + new Date(due).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''));
+      return { ok: true, id: task.id, due: due ? new Date(due).toLocaleString() : null, note: 'Reminder tabhi bajega jab ye page khula rahe.' };
+    }
+    if (name === 'list_tasks'){
+      return { ok: true, tasks: store.get('tasks', []).map(t => ({ id: t.id, text: t.text, done: t.done, due: t.due ? new Date(t.due).toLocaleString() : null })), notes: store.get('notes', []).slice(0, 10).map(n => n.text) };
+    }
+    if (name === 'complete_task'){
+      const ts = store.get('tasks', []), t = ts.find(x => x.id === a.id);
+      if (!t) return { ok: false, error: 'is id ka task nahi mila' };
+      t.done = true;
+      if (!store.set('tasks', ts)) return { ok: false, error: 'storage blocked hai' };
+      logAct('Task done: ' + t.text); return { ok: true };
+    }
+    return { ok: false, error: 'unknown tool' };
+  } catch (e){ return { ok: false, error: String((e && e.message) || e) }; }
+}
+async function toolRouter(name, a){
+  if (name === 'web_search') return await webSearchTool(a);
+  if (name === 'see_camera') return await seeCameraTool(a);
+  if (name !== 'delegate_to') return runTool(name, a);
+  const id = String(a.agent || '').toLowerCase();
+  if (!window.MYRA_AGENTS || !window.MYRA_AGENTS.ids.includes(id)) return { ok: false, error: 'agent ka naam galat hai' };
+  addLog('ai', '\u2192 ' + id.toUpperCase() + ' ko kaam diya...');
+  const r = await window.MYRA_AGENTS.run(id, String(a.task || ''), 'MYRA');
+  logAct('Kaam ' + id.toUpperCase() + ' ko diya: ' + String(a.task || '').slice(0, 60));
+  if (r.ok && r.reply && ((r.reply.links && r.reply.links.length) || /```html/.test(r.text))) window.MYRA_AGENTS.show(id);
+  return r.ok ? { ok: true, agent: id, result: String(r.text).slice(0, 3000), note: 'Poora jawab ' + id.toUpperCase() + ' ki chat mein (Agents card) hai. Jo button bane hain unhe user ko tap karna hai.' } : { ok: false, error: r.text };
+}
+async function think(text, opts){
+  opts = opts || {};
+  const ev = !!opts.ev;
+  lastLinks = null;
+  if (!navigator.onLine || !hasAnyKey()){
+    const o = offlineBrain(text);
+    if (!navigator.onLine || o.handled){ lastLinks = o.links || null; return o.text; }
+    return thinkDemo(text);
+  }
+  const img = (!ev && cam.on && VISION_RE.test(text)) ? captureFrame(768) : null;
+  const msgs = [...hist.slice(-8), Object.assign({ role: 'user', text }, img ? { image: img } : {})];
+  const decls = TOOLS[0].functionDeclarations;
+  let ran = 0;
+  try {
+    for (let step = 0; step < 6; step++){
+      const r = await llmCall({ system: systemPrompt(), msgs, tools: decls, onText: opts.onText, signal: opts.signal, maxTokens: 1500 });
+      if (!r.calls.length || step === 5){
+        const out = (r.text || '').trim();
+        if (!out) return ran ? 'Kaam ho gaya. Details Skills card mein dekho.' : 'Khaali jawab aaya. Dobara try karo.';
+        if (!ev) hist.push({ role: 'user', text }, { role: 'model', text: out });
+        return out;
+      }
+      setMode('working');
+      msgs.push({ role: 'model', text: r.text, calls: r.calls, _g: r._g });
+      const results = [];
+      for (const c of r.calls){
+        ran++;
+        results.push({ id: c.id, gid: c.gid, name: c.name, response: await toolRouter(c.name, c.args || {}) });
+      }
+      msgs.push({ role: 'tool', results });
+    }
+    return 'Kaam adhura reh gaya. Dobara try karo.';
+  } catch (e){
+    if (e && e.name === 'AbortError') return '';
+    if (e instanceof TypeError){ const o = offlineBrain(text); if (o.handled){ lastLinks = o.links || null; return o.text; } }
+    return llmErrText(e);
+  }
+}
+
+function setAuto(on){
+  store.set('auto', on);
+  $('auto').setAttribute('aria-checked', String(on));
+  const c = $('st-auto'); if (c) c.checked = on;
+  touch();
+  toast(on ? 'Autonomous ON: Myra khud baat shuru karegi aur tasks par nazar rakhegi.' : 'Autonomous OFF: Myra sirf tumhare bolne par jawab degi.');
+}
+$('auto').onclick = () => setAuto(!store.get('auto', false));
+$('auto').setAttribute('aria-checked', String(store.get('auto', false)));
+/* idle check-ins (only when Autonomous is ON) */
+let lastAct = Date.now(), lastNudge = 0, nudges = 0;
+function touch(){ lastAct = Date.now(); nudges = 0; }
+['keydown', 'pointerdown'].forEach(e => addEventListener(e, touch, { passive: true }));
+setInterval(async () => {
+  if (!store.get('auto', false) || !active || busy || listening || live.on || live.connecting || !sheet.hidden || !hasAnyKey()) return;
+  const idle = Math.max(20, +store.get('idle', 120) || 120) * 1000, max = Math.min(10, Math.max(1, +store.get('maxn', 3) || 3));
+  const now = Date.now();
+  if (now - lastAct < idle || now - lastNudge < idle || nudges >= max) return;
+  lastNudge = now; nudges++; busy = true;
+  setMode('thinking');
+  const reply = await think('[APP EVENT] User kuch der se shaant hai. Agar open tasks ya reminders hain to unka chhota brief do, warna ek natural check-in line likho. Sirf ek-do chhote vaakya.', { ev: true });
+  addLog('ai', reply); busy = false;
+  if (/^(API error|Network error|Setting mein)/.test(reply)){ nudges = max; idleMode(); } else speak(reply);
+}, 10000);
+/* reminder checker (fires only while this page is open) */
+setInterval(() => {
+  const ts = store.get('tasks', []), now = Date.now();
+  let hit = false;
+  ts.forEach(t => {
+    if (t.due && !t.done && !t.fired && t.due <= now){
+      t.fired = true; hit = true;
+      toast('Reminder: ' + t.text); addLog('ai', 'Reminder: ' + t.text); reminderAlert(); speak('Reminder: ' + t.text);
+    }
+  });
+  if (hit) store.set('tasks', ts);
+}, 15000);
+function mkBtn(label, aria, fn, cls){ const b = document.createElement('button'); b.textContent = label; b.setAttribute('aria-label', aria); if (cls) b.className = cls; b.onclick = fn; return b; }
+function mkLi(text, sub, cls){
+  const li = document.createElement('li'); if (cls) li.className = cls;
+  const s = document.createElement('span'); s.textContent = text;
+  if (sub){ const m = document.createElement('small'); m.textContent = sub; s.appendChild(m); }
+  li.appendChild(s); return li;
+}
+function renderAgentPanel(){
+  const wrap = document.createElement('div');
+  wrap.innerHTML = '<div class=\'sec\'>AAJ KE TASKS</div><ul class=\'tk\'></ul><div class=\'sec\'>AGENT ACTIVITY</div><ul class=\'ac\'></ul>';
+  body.appendChild(wrap);
+  const tl = wrap.querySelector('.tk'), al = wrap.querySelector('.ac');
+  const empty = (ul, m) => { const d = document.createElement('div'); d.className = 'empty'; d.textContent = m; ul.appendChild(d); };
+  const paint = () => {
+    tl.innerHTML = ''; al.innerHTML = '';
+    const ts = store.get('tasks', []);
+    if (!ts.length) empty(tl, 'Koi task nahi. Autonomous ON karke bolo: kal 9 baje reminder lagao.');
+    ts.forEach(t => {
+      const due = t.due ? new Date(t.due).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : null;
+      const li = mkLi(t.text, due, t.done ? 'done' : '');
+      const box = document.createElement('span'); box.style.display = 'flex'; box.style.gap = '8px';
+      if (!t.done) box.appendChild(mkBtn('\u2713', 'Ho gaya', () => { const all = store.get('tasks', []), x = all.find(z => z.id === t.id); if (x){ x.done = true; store.set('tasks', all); } paint(); }, 'ok'));
+      box.appendChild(mkBtn('\u00d7', 'Hatao', () => { store.set('tasks', store.get('tasks', []).filter(z => z.id !== t.id)); paint(); }));
+      li.appendChild(box); tl.appendChild(li);
+    });
+    const ac = store.get('acts', []);
+    if (!ac.length) empty(al, 'Abhi tak koi agent action nahi hua.');
+    ac.forEach(a => al.appendChild(mkLi(a.t, new Date(a.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))));
+  };
+  paint();
+}
+let curAudio = null;
+function stopSpeech(){
+  try { speechSynthesis.cancel(); } catch {}
+  if (curAudio){ try { curAudio.pause(); URL.revokeObjectURL(curAudio.src); } catch {} curAudio = null; }
+}
+function speakBrowser(text){
+  if (!('speechSynthesis' in window)) return idleMode();
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = store.get('lang', 'hi-IN');
+    u.onstart = () => setMode('speaking');
+    u.onend = u.onerror = idleMode;
+    speechSynthesis.speak(u);
+  } catch { idleMode(); }
+}
+function normModel(m){
+  let s = String(m || '').trim().toLowerCase().replace(/[\s\-.]+/g, '_');
+  if (s && !s.startsWith('eleven')) s = 'eleven_' + s;
+  return s;
+}
+function xiErr(e){
+  if (e instanceof TypeError || /failed to fetch|networkerror/i.test(e && e.message || ''))
+    return 'ElevenLabs tak network nahi pahunch raha. Ye sandbox page bahar ka network block karta hai. Page ko download karke HTTPS site ya local server par chalao.';
+  return 'ElevenLabs error: ' + (e && e.message ? e.message : 'key ya voice ID check karo') + '.';
+}
+async function speakEleven(text, key){
+  const vid = store.get('xivoice', '21m00Tcm4TlvDq8ikWAM') || '21m00Tcm4TlvDq8ikWAM';
+  const model = normModel(store.get('ximodel', '')) || 'eleven_multilingual_v2';
+  const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(vid), {
+    method: 'POST',
+    headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
+    body: JSON.stringify({ text, model_id: model })
+  });
+  if (!res.ok){
+    let msg = res.status;
+    try { const j = await res.json(); msg = (j.detail && (j.detail.message || j.detail)) || msg; } catch {}
+    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+  }
+  const blob = await res.blob();
+  stopSpeech();
+  const a = new Audio(URL.createObjectURL(blob));
+  curAudio = a;
+  a.onplay = () => setMode('speaking');
+  a.onended = a.onerror = () => { if (curAudio === a){ URL.revokeObjectURL(a.src); curAudio = null; } idleMode(); };
+  await a.play();
+}
+async function speakWhole(text){
+  if (!store.get('voice', true)) return idleMode();
+  const xk = store.get('xikey', '');
+  if (!xk) return speakBrowser(text);
+  try { await speakEleven(text, xk); }
+  catch (e) {
+    toast(xiErr(e) + ' Browser voice use ho rahi hai.');
+    speakBrowser(text);
+  }
+}
+let busy = false;
+async function sendMsg(raw){
+  const text = (raw || '').trim();
+  if (!text) return;
+  if (live.on){ addLog('me', text); $('txt').value = ''; liveSend({ realtimeInput: { text } }); return; }
+  if (busy || (run && !run.done)) interruptMyra();
+  busy = true;
+  if (!active) startAI(false, false);
+  addLog('me', text);
+  $('txt').value = '';
+  setMode('thinking');
+  const r = run = { ctl: new AbortController(), speaker: makeSpeaker(), acc: '', line: null, done: false };
+  const reply = await think(text, { signal: r.ctl.signal, onText: (d) => {
+    if (r.ctl.signal.aborted) return;
+    if (!r.line) r.line = addLog('ai', '');
+    r.acc += d; setLine(r.line, r.acc); r.speaker.push(d);
+  } });
+  if (r.ctl.signal.aborted){ r.done = true; return; }
+  const isErr = /^(API error|Network error|Setting mein)/.test(reply);
+  if (isErr){
+    addLog('ai', reply);
+    if (r.acc) r.speaker.end(); else r.speaker.cancel();
+    r.done = true; busy = false; lastLinks = null; if (!r.acc) idleMode();
+    return;
+  }
+  if (!r.line){ r.line = addLog('ai', reply, lastLinks); r.speaker.push(reply + ' '); }
+  else if (lastLinks) addLinks(r.line, lastLinks);
+  r.speaker.end();
+  r.done = true; busy = false; lastLinks = null;
+}
+$('send').onclick = () => sendMsg($('txt').value);
+$('txt').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendMsg($('txt').value); } });
+
+/* ---------- mic ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function stopMic(){
+  listening = false;
+  $('mic').classList.remove('on'); $('mic').setAttribute('aria-pressed', 'false');
+  if (rec) { try { rec.stop(); } catch {} }
+}
+function startMic(){
+  if (!SR) return toast('Is browser mein mic typing nahi chalti. Chrome ya Edge use karo.');
+  if (!active) startAI(false, false);
+  interruptMyra();
+  rec = new SR();
+  rec.lang = store.get('lang', 'hi-IN');
+  rec.interimResults = true;
+  rec.continuous = false;
+  let finalText = '';
+  rec.onstart = () => { listening = true; $('mic').classList.add('on'); $('mic').setAttribute('aria-pressed', 'true'); setMode('listening'); };
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t; else interim += t;
+    }
+    $('txt').value = finalText + interim;
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Mic blocked hai. Browser mein mic Allow karo (HTTPS page chahiye).');
+    else if (e.error === 'no-speech') toast('Kuch sunai nahi diya. Dobara bolo.');
+    else if (e.error !== 'aborted') toast('Mic error: ' + e.error);
+  };
+  rec.onend = () => {
+    const had = listening;
+    listening = false;
+    $('mic').classList.remove('on'); $('mic').setAttribute('aria-pressed', 'false');
+    if (mode === 'listening') idleMode();
+    const text = (finalText || $('txt').value).trim();
+    if (had && text) sendMsg(text);
+  };
+  try { rec.start(); } catch { toast('Mic start nahi hua. Ek second baad dobara dabao.'); }
+}
+$('mic').onclick = () => live.on ? liveToggleMute() : (listening ? stopMic() : startMic());
+
+/* ---------- sheets ---------- */
+const sheet = $('sheet'), body = $('sh-body');
+let openNode = null;
+function closeSheet(){
+  sheet.hidden = true;
+  if (openNode) openNode.setAttribute('aria-expanded', 'false');
+  openNode = null;
+}
+function openSheet(name, node){
+  const sec = SECTIONS[name];
+  openNode = node; node.setAttribute('aria-expanded', 'true');
+  sheet.querySelector('.sheet-card').style.setProperty('--c', getComputedStyle(node).getPropertyValue('--c'));
+  $('sh-title').textContent = sec.title;
+  body.innerHTML = '';
+  sec.render();
+  sheet.hidden = false;
+}
+$('sh-x').onclick = closeSheet;
+sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
+nodeEls.forEach(n => n.onclick = () => openSheet(n.dataset.s, n));
+
+const SECTIONS = {
+  memory: { title: 'MEMORY', render(){
+    body.innerHTML = `<div id="pend"></div>
+      <p class="hint">Jo baatein Myra ko yaad rakhni hain, yahan likho. Myra khud kuch yaad rakhna chahe to pehle tumse poochhegi.</p>
+      <div class="row"><input class="fld" id="mem-in" placeholder="Jaise: Mera naam Rahul hai" aria-label="Nayi memory"><button class="btn" id="mem-add">ADD</button></div>
+      <ul id="mem-list"></ul>
+      <div class="sec">GOALS AUR PROJECTS</div>
+      <p class="hint">Myra in par samay-samay par halka follow-up karegi.</p>
+      <div class="row"><input class="fld" id="goal-in" placeholder="Jaise: Roz 30 min coding practice" aria-label="Naya goal"><button class="btn" id="goal-add">ADD</button></div>
+      <ul id="goal-list"></ul>`;
+    const mk = (tag, txt) => { const e = document.createElement(tag); if (txt != null) e.textContent = txt; return e; };
+    const empty = (ul, m) => { const d = mk('div', m); d.className = 'empty'; ul.appendChild(d); };
+    const paint = () => {
+      const pd = $('pend'); pd.innerHTML = '';
+      const pend = store.get('mem_pending', []);
+      if (pend.length){
+        const hd = mk('div', 'APPROVAL KA INTEZAR'); hd.className = 'sec'; pd.appendChild(hd);
+        const ul0 = mk('ul');
+        pend.forEach(p => {
+          const li = mk('li'), s = mk('span', p.text), box = mk('span'); box.style.display = 'flex'; box.style.gap = '8px';
+          const y = mk('button', '\u2713'); y.className = 'ok'; y.setAttribute('aria-label', 'Haan, yaad rakho'); y.onclick = () => { runTool('save_memory', { text: p.text, approved: true }); paint(); };
+          const n = mk('button', '\u00d7'); n.setAttribute('aria-label', 'Nahi'); n.onclick = () => { store.set('mem_pending', store.get('mem_pending', []).filter(x => x.id !== p.id)); paintMemQ(); paint(); };
+          box.append(y, n); li.append(s, box); ul0.appendChild(li);
+        });
+        pd.appendChild(ul0);
+      }
+      const list = $('mem-list'); list.innerHTML = '';
+      const m = store.get('mem', []);
+      if (!m.length) empty(list, 'Abhi koi memory nahi hai. Upar kuch likh kar Add dabao.');
+      m.forEach((t, i) => {
+        const li = mk('li'), s = mk('span', t), b = mk('button', '\u00d7'); b.setAttribute('aria-label', 'Hatao');
+        b.onclick = () => { const a = store.get('mem', []); a.splice(i, 1); store.set('mem', a); paint(); };
+        li.append(s, b); list.appendChild(li);
+      });
+      const gl = $('goal-list'); gl.innerHTML = '';
+      const goals = store.get('goals', []);
+      if (!goals.length) empty(gl, 'Abhi koi goal nahi hai.');
+      goals.forEach(g => {
+        const li = mk('li', null); if (g.status === 'done') li.className = 'done';
+        const s = mk('span', g.title); if (g.notes){ s.appendChild(mk('small', g.notes)); }
+        const box = mk('span'); box.style.display = 'flex'; box.style.gap = '8px';
+        if (g.status !== 'done'){ const ok = mk('button', '\u2713'); ok.className = 'ok'; ok.setAttribute('aria-label', 'Ho gaya'); ok.onclick = () => { const a = store.get('goals', []), x = a.find(z => z.id === g.id); if (x){ x.status = 'done'; store.set('goals', a); } paint(); }; box.appendChild(ok); }
+        const del = mk('button', '\u00d7'); del.setAttribute('aria-label', 'Hatao'); del.onclick = () => { store.set('goals', store.get('goals', []).filter(z => z.id !== g.id)); paint(); };
+        box.appendChild(del); li.append(s, box); gl.appendChild(li);
+      });
+    };
+    const add = () => { const v = $('mem-in').value.trim(); if (!v) return; store.set('mem', [...store.get('mem', []), v]); $('mem-in').value = ''; paint(); };
+    const addG = () => { const v = $('goal-in').value.trim(); if (!v) return; runTool('set_goal', { title: v }); $('goal-in').value = ''; paint(); };
+    $('mem-add').onclick = add; $('goal-add').onclick = addG;
+    $('mem-in').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    $('goal-in').addEventListener('keydown', e => { if (e.key === 'Enter') addG(); });
+    paint();
+  }},
+  skills: { title: 'SKILLS', render(){
+    body.innerHTML = '<p class="hint">Jo skills on hongi, Myra unhe apne jawab mein dhyan mein rakhegi.</p>';
+    SKILLS.forEach(([k, name, desc]) => {
+      const l = document.createElement('label'); l.className = 'tg';
+      l.innerHTML = `<span>${name}<small>${desc}</small></span><input type="checkbox">`;
+      const c = l.querySelector('input'); c.checked = store.get('skill_' + k, k !== 'yt');
+      c.onchange = () => store.set('skill_' + k, c.checked);
+      body.appendChild(l);
+    });
+    renderAgentPanel();
+  }},
+  soul: { title: 'SOUL', render(){
+    body.innerHTML = `<p class="hint">Myra ka swabhav aur bolne ka tareeka. Yahi uska main instruction hai.</p>
+      <textarea id="soul-in" aria-label="Myra ka swabhav"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn" id="soul-reset" style="height:34px">RESET</button></div>
+      <p class="saved">Apne aap save hota hai.</p>`;
+    const t = $('soul-in'); t.value = store.get('soul', DEFAULT_SOUL);
+    t.oninput = () => store.set('soul', t.value);
+    $('soul-reset').onclick = () => { t.value = DEFAULT_SOUL; store.set('soul', DEFAULT_SOUL); };
+  }},
+  setting: { title: 'SETTING', render(){
+    body.innerHTML = `<div class="sec" style="margin-top:0">AI ENGINE</div>
+      <label class="f">PEHLE KIS AI SE KAAM LENA HAI<select id="st-pri"><option value="gemini">Gemini</option><option value="claude">Claude</option></select></label>
+      <label class="tg"><span>Auto shift (backup)<small>Ek AI na chale to doosre par apne aap</small></span><input type="checkbox" id="st-fb"></label>
+      <label class="f">GEMINI API KEY<input class="fld" id="st-key" type="password" autocomplete="off" placeholder="aistudio.google.com/apikey"></label>
+      <label class="f">GEMINI MODEL (KHAALI = AUTO)<input class="fld" id="st-model" list="gm-models" placeholder="gemini-3.8-flash" autocomplete="off"></label>
+      <datalist id="gm-models"><option value="gemini-3.8-flash"><option value="gemini-3.6-flash"><option value="gemini-3.5-flash-lite"><option value="gemini-4-argon"></datalist>
+      <button class="btn" id="st-gtest" style="height:34px;margin-bottom:10px">GEMINI TEST</button>
+      <label class="f">CLAUDE API KEY<input class="fld" id="st-ckey" type="password" autocomplete="off" placeholder="console.anthropic.com"></label>
+      <label class="f">CLAUDE MODEL (KHAALI = AUTO)<input class="fld" id="st-cmodel" list="cl-models" placeholder="claude-sonnet-5-5" autocomplete="off"></label>
+      <datalist id="cl-models"><option value="claude-sonnet-5-5"><option value="claude-haiku-5-5"><option value="claude-opus-5-5"></datalist>
+      <button class="btn" id="st-ctest" style="height:34px;margin-bottom:6px">CLAUDE TEST</button>
+      <div class="sec">VOICE MODE (APNI PASAND CHUNO)</div>
+      <label class="f">MYRA KA VOICE MODE<select id="st-voicemode">
+        <option value="auto">Auto — Gemini Live, warna selected TTS</option>
+        <option value="live">Gemini Live — real-time conversation</option>
+        <option value="eleven">ElevenLabs — natural generated voice</option>
+        <option value="browser">Browser — device ki built-in voice</option>
+      </select></label>
+      <p class="saved">Auto mode mein Gemini Live available ho to use hoga; warna ElevenLabs key hone par ElevenLabs, nahi to browser voice.</p>
+      <div class="sec">GEMINI LIVE (SEEDHI AWAAZ MEIN BAAT)</div>
+      <label class="tg"><span>Gemini Live use karo<small>Auto mode mein START AI dabate hi real-time voice chat</small></span><input type="checkbox" id="st-live"></label>
+      <label class="f">LIVE MODEL (KHAALI = AUTO)<input class="fld" id="st-lmodel" list="lv-models" placeholder="gemini-3.8-live" autocomplete="off"></label>
+      <datalist id="lv-models"><option value="gemini-3.8-live"><option value="gemini-3.8-live-extended-thinking"><option value="gemini-3.1-flash-live-preview"><option value="gemini-2.5-flash-native-audio-preview-12-2025"></datalist>
+      <label class="f">LIVE AWAAZ<select id="st-lvoice"><option value="">Default</option><option>Aoede</option><option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Leda</option><option>Orus</option><option>Zephyr</option></select></label>
+      <label class="f">LIVE JAWAB KI SPEED<select id="st-lspeed"><option value="">Default (Google)</option><option value="fast">Tez (jaldi jawab)</option><option value="calm">Aaram se (beech mein na kaate)</option></select></label>
+      <label class="tg"><span>Shuru mein greeting<small>START AI par Myra pehle hello bolegi</small></span><input type="checkbox" id="st-greet"></label>
+      <div class="sec">AWAAZ (JAB LIVE BAND HO)</div>
+      <label class="f">BHASHA (MIC + AWAAZ)<select id="st-lang"><option value="hi-IN">Hindi</option><option value="en-IN">English (India)</option><option value="bn-IN">Bengali</option></select></label>
+      <label class="tg"><span>Myra bol kar jawab de<small>Jawab awaaz mein sunai dega</small></span><input type="checkbox" id="st-voice"></label>
+      <label class="f">ELEVENLABS API KEY (REAL AWAAZ)<input class="fld" id="st-xikey" type="password" autocomplete="off" placeholder="elevenlabs.io → Developers → API Keys"></label>
+      <label class="f">ELEVENLABS VOICE ID<input class="fld" id="st-xivoice" placeholder="21m00Tcm4TlvDq8ikWAM"></label>
+      <label class="f">ELEVENLABS MODEL ID<input class="fld" id="st-ximodel" list="xi-models" placeholder="eleven_flash_v2_5 (sabse tez)" autocomplete="off"></label>
+      <datalist id="xi-models"><option value="eleven_v4"><option value="eleven_v4_turbo"><option value="eleven_v3"><option value="eleven_multilingual_v2"><option value="eleven_flash_v2_5"></datalist>
+      <button class="btn" id="st-xitest" style="height:34px;margin-bottom:6px">AWAAZ TEST KARO</button>
+      <label class="tg" style="margin-top:8px"><span>Autonomous mode<small>Khud baat shuru karna aur tasks par nazar</small></span><input type="checkbox" id="st-auto"></label>
+      <label class="f">CHUP RAHNE PAR CHECK-IN (SECOND)<input class="fld" id="st-idle" type="number" min="20" step="10"></label>
+      <label class="f">ZYADA SE ZYADA LAGATAR CHECK-IN<input class="fld" id="st-maxn" type="number" min="1" max="10"></label>
+      <p class="saved">ElevenLabs key daalne par generated voice chalegi. Key na ho ya request fail ho to browser voice fallback ho sakti hai.</p>
+      <p class="hint warn" style="margin-top:10px;color:#ffb4a8">SECURITY: API keys is HTML ke browser-side JavaScript se direct services ko bheji jaati hain aur localStorage mein save hoti hain. Is file ko public/share na karein. Production APK ke liye keys ko backend/server par rakhna chahiye; is HTML-only build mein secure secret storage nahi hai.</p>`;
+    $('st-pri').value = store.get('llm_primary', 'gemini'); $('st-pri').onchange = e => store.set('llm_primary', e.target.value);
+    $('st-fb').checked = store.get('llm_fb', true); $('st-fb').onchange = e => store.set('llm_fb', e.target.checked);
+    $('st-key').value = store.get('key', ''); $('st-key').oninput = e => store.set('key', e.target.value.trim());
+    $('st-model').value = store.get('model', ''); $('st-model').oninput = e => store.set('model', e.target.value.trim());
+    $('st-ckey').value = store.get('ckey', ''); $('st-ckey').oninput = e => store.set('ckey', e.target.value.trim());
+    $('st-cmodel').value = store.get('cmodel', ''); $('st-cmodel').oninput = e => store.set('cmodel', e.target.value.trim());
+    $('st-gtest').onclick = () => testProvider('gemini'); $('st-ctest').onclick = () => testProvider('claude');
+    $('st-voicemode').value = store.get('voicemode', 'auto'); $('st-voicemode').onchange = e => { store.set('voicemode', e.target.value); if (active) toast('Voice mode badal gaya. STOP AI phir START AI dabao.'); };
+    $('st-live').checked = store.get('live', true); $('st-live').onchange = e => { store.set('live', e.target.checked); if (active) toast('Badlav ke liye STOP AI phir START AI dabao.'); };
+    $('st-lmodel').value = store.get('livemodel', ''); $('st-lmodel').oninput = e => store.set('livemodel', e.target.value.trim());
+    $('st-lspeed').value = store.get('livespeed', ''); $('st-lspeed').onchange = e => store.set('livespeed', e.target.value);
+    $('st-greet').checked = store.get('greet', true); $('st-greet').onchange = e => store.set('greet', e.target.checked);
+    $('st-lvoice').value = store.get('livevoice', ''); $('st-lvoice').onchange = e => store.set('livevoice', e.target.value);
+    $('st-lang').value = store.get('lang', 'hi-IN'); $('st-lang').onchange = e => store.set('lang', e.target.value);
+    $('st-voice').checked = store.get('voice', true); $('st-voice').onchange = e => store.set('voice', e.target.checked);
+    $('st-auto').checked = store.get('auto', false); $('st-auto').onchange = e => setAuto(e.target.checked);
+    $('st-idle').value = store.get('idle', 120); $('st-idle').oninput = e => store.set('idle', Math.max(20, +e.target.value || 120));
+    $('st-maxn').value = store.get('maxn', 3); $('st-maxn').oninput = e => store.set('maxn', Math.min(10, Math.max(1, +e.target.value || 3)));
+    $('st-xikey').value = store.get('xikey', ''); $('st-xikey').oninput = e => store.set('xikey', e.target.value.trim());
+    $('st-xivoice').value = store.get('xivoice', ''); $('st-xivoice').oninput = e => store.set('xivoice', e.target.value.trim());
+    $('st-ximodel').value = normModel(store.get('ximodel', '')); $('st-ximodel').oninput = e => store.set('ximodel', normModel(e.target.value)); $('st-ximodel').onchange = e => { e.target.value = normModel(e.target.value); store.set('ximodel', e.target.value); };
+    $('st-xitest').onclick = () => { const k = store.get('xikey', ''); if (!k) return toast('Pehle ElevenLabs API key daalo.'); speakEleven('Hello! Main Myra hoon. Meri awaaz kaisi lag rahi hai?', k).catch(e => toast(xiErr(e))); };
+  }}
+};
+/* ================= AGENT TOWN ================= */
+(function(){
+const $ = (id) => document.getElementById('ag-' + id);
+const root = document.getElementById('agents');
+const TAU = Math.PI * 2;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+function shade(hex, f){
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g2 = (n >> 8) & 255, b2 = n & 255;
+  const k = f < 0 ? 0 : 255, p = Math.abs(f);
+  r = Math.round((k - r) * p + r); g2 = Math.round((k - g2) * p + g2); b2 = Math.round((k - b2) * p + b2);
+  return '#' + ((1 << 24) + (r << 16) + (g2 << 8) + b2).toString(16).slice(1);
+}
+
+/* ---------- contacts + messaging helpers (Ring) ---------- */
+const cc = () => (String(store.get('cc', '91')).replace(/\D/g, '')) || '91';
+function normNum(p){
+  let d = String(p || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2); else if (d.startsWith('0')) d = d.slice(1);
+  if (d.length === 10) d = cc() + d;
+  return d;
+}
+function findContact(q){
+  q = String(q || '').trim(); if (!q) return null;
+  const digits = q.replace(/\D/g, '');
+  if (digits.length >= 7) return { name: q, phone: digits };
+  const l = q.toLowerCase(), all = store.get('contacts', []);
+  return all.find(c => c.name.toLowerCase() === l) || all.find(c => c.name.toLowerCase().includes(l) || l.includes(c.name.toLowerCase())) || null;
+}
+function pushStore(key, item, max){ const a = store.get(key, []); a.unshift(item); return store.set(key, a.slice(0, max || 60)); }
+
+/* ---------- agents ---------- */
+const TXT = { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] };
+const AG = {
+  nova: {
+    name: 'NOVA', role: 'App Control', blurb: 'Apps, websites aur links kholti hai', doing: 'link bana rahi hoon...',
+    color: '#f2933f', hair: '#2b1b12', skin: '#f1c9a0', style: 1, desk: [18, 78], pois: 'L',
+    chips: ['YouTube pe lofi music khojo', 'Maps pe paas ka petrol pump', 'Gmail kholo'],
+    system: () => `Tum NOVA ho, MYRA ki App Control agent. User jo app, website ya link kholna chahe, uske liye open_link tool chalao.
+Zaroori sach: web page se phone ke apps seedhe control nahi hote. Sirf link ya deep-link ban sakta hai, aur user ko chat ka button khud tap karna padta hai. Kabhi mat kaho ki app khul gaya, kaho ki button tap karo.
+Known links: YouTube search https://www.youtube.com/results?search_query=QUERY | Google Maps https://www.google.com/maps/search/?api=1&query=QUERY | Google https://www.google.com/search?q=QUERY | WhatsApp https://wa.me/NUMBER?text=TEXT | Gmail https://mail.google.com | Instagram https://www.instagram.com | Spotify https://open.spotify.com | call tel:NUMBER | SMS sms:NUMBER?body=TEXT | email mailto:ADDRESS.
+QUERY ko URL-encode karo. Jawab Hinglish mein, chhota.`,
+    tools: [{ name: 'open_link', description: 'User ke liye ek link ya deep-link ka button banao', parameters: { type: 'OBJECT', properties: { url: { type: 'STRING' }, label: { type: 'STRING' } }, required: ['url'] } }],
+    exec: async (name, a, reply) => {
+      if (name !== 'open_link') return { ok: false, error: 'unknown tool' };
+      let u; try { u = new URL(String(a.url || '')); } catch { return { ok: false, error: 'url galat hai' }; }
+      if (!['https:', 'http:', 'tel:', 'sms:', 'mailto:', 'whatsapp:', 'geo:'].includes(u.protocol)) return { ok: false, error: 'ye link type allowed nahi hai' };
+      reply.links.push({ url: u.href, label: String(a.label || u.hostname || u.protocol) });
+      return { ok: true, note: 'Link chat mein button ke roop mein dikha diya. Khulega tab jab user tap karega.' };
+    }
+  },
+  pulse: {
+    name: 'PULSE', role: 'Daily News', blurb: 'Aaj ki taaza khabar laati hai', doing: 'khabar dhoond rahi hoon...',
+    color: '#2fd6e6', hair: '#d9a441', skin: '#f6d7b8', style: 1, desk: [90, 78], pois: 'L', grounded: true,
+    chips: ['Aaj ki khabar', 'Naya brief (refresh)', 'Sirf tech aur AI ki khabar'],
+    system: () => `Tum PULSE ho, MYRA ki Daily News agent. Aaj ki date: ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
+Google Search se taaza khabrein dhoondho. Default topics: India, technology aur AI, world. User koi topic bole to wahi.
+6 se 8 khabrein do. Har khabar: **headline**, 1-2 line Hinglish summary, aur source ka naam. Sirf search se mili jaankari do. Kuch na mile to saaf bolo. Lamba intro mat likho.`
+  },
+  forge: {
+    name: 'FORGE', role: 'App Builder', blurb: 'Bolo, app bana deti hai', doing: 'app bana rahi hoon...',
+    color: '#b58cff', hair: '#7a3b2e', skin: '#e0ac84', style: 0, desk: [162, 78], pois: 'L', keep: 4,
+    chips: ['Todo list app banao', 'Calculator app banao', 'Quiz game banao'],
+    system: () => `Tum FORGE ho, MYRA ki App Builder agent. User jo app bole, ek single self-contained HTML file banao: HTML, CSS aur JS ek hi file mein, bahar ki library ya network ke bina. Data ke liye in-memory ya localStorage (try/catch ke saath). Design saaf, mobile-friendly aur dark.
+Poori file ek \`\`\`html code block mein do. Uske baad 2-3 line Hinglish mein batao kya banaya. Badlav maange to poori updated file dobara do.`
+  },
+  byte: {
+    name: 'BYTE', role: 'Coder', blurb: 'Code likhta aur bug theek karta hai', doing: 'code likh raha hoon...',
+    color: '#5fe08a', hair: '#1d1d28', skin: '#c68a5e', style: 0, desk: [18, 166], pois: 'L', keep: 8,
+    chips: ['Python mein calculator code likho', 'JavaScript debounce samjhao', 'HTML form validation likho'],
+    system: () => `Tum BYTE ho, MYRA ka coding agent. User jis language mein bole usi mein poora chalne wala code likho, fenced code block mein language ke saath. Pehle 1-2 line approach, phir code, phir kaise chalana hai. Bug fix mein root cause batao. Explanation Hinglish mein, chhota.`
+  },
+  atlas: {
+    name: 'ATLAS', role: 'Task Agent', blurb: 'Jo task do, wo karta hai', doing: 'task chala raha hoon...',
+    color: '#ff7a90', hair: '#e8e0d0', skin: '#f1c9a0', style: 2, desk: [90, 166], pois: 'L',
+    chips: ['Aaj ke tasks dikhao', '10 minute baad pani peene ka reminder', 'Aaj ki khabar laa kar note mein save karo'],
+    system: () => {
+      const open = store.get('tasks', []).filter(t => !t.done);
+      return `Tum ATLAS ho, MYRA ki Task agent. User jo kaam de, use chhote steps mein todo aur tools khud chalao. Har tool ka result dekho, galti ho to sudharo.
+Tools: save_memory, create_note, create_reminder (minutes_from_now ya at_time HH:MM 24h), list_tasks, complete_task, delegate_to (pulse = khabar, forge = app banana, byte = coding, ring = message ya call).
+Kaam ko ho gaya tabhi kaho jab tool ne ok:true diya. Fail hua to saaf batao. Reminder sirf tab bajta hai jab MYRA ka page khula ho. Hinglish mein chhote jawab.` +
+      (open.length ? '\nOpen tasks:\n- ' + open.map(t => `${t.text} [id:${t.id}]`).join('\n- ') : '');
+    },
+    tools: [
+      { name: 'save_memory', description: 'User ki pasand ya goal yaad rakhne ke liye save karo', parameters: TXT },
+      { name: 'create_note', description: 'Ek note save karo', parameters: TXT },
+      { name: 'create_reminder', description: 'Reminder ya task banao', parameters: { type: 'OBJECT', properties: { text: { type: 'STRING' }, minutes_from_now: { type: 'NUMBER' }, at_time: { type: 'STRING' } }, required: ['text'] } },
+      { name: 'list_tasks', description: 'Saare tasks, reminders aur notes dikhao' },
+      { name: 'complete_task', description: 'Task ko done mark karo', parameters: { type: 'OBJECT', properties: { id: { type: 'STRING' } }, required: ['id'] } },
+      { name: 'delegate_to', description: 'Kaam kisi aur agent ko do', parameters: { type: 'OBJECT', properties: { agent: { type: 'STRING', description: 'pulse, forge, byte ya ring' }, task: { type: 'STRING' } }, required: ['agent', 'task'] } }
+    ],
+    exec: async (name, a) => {
+      if (name !== 'delegate_to') return runTool(name, a);
+      const t = String(a.agent || '').toLowerCase();
+      if (!['pulse', 'forge', 'byte', 'ring'].includes(t)) return { ok: false, error: 'agent galat hai' };
+      const r = await runAgent(t, String(a.task || ''), 'ATLAS');
+      return r.ok ? { ok: true, agent: t, result: r.text.slice(0, 3000), note: 'Poora jawab ' + AG[t].name + ' ki chat mein hai.' } : { ok: false, error: r.text };
+    }
+  },
+  ring: {
+    name: 'RING', role: 'Call & Message', blurb: 'Call receive karti, message bhejti hai', doing: 'message taiyar kar rahi hoon...',
+    color: '#ffd24a', hair: '#3a1f3d', skin: '#e0ac84', style: 3, desk: [338, 86], pois: 'C', call: false,
+    chips: ['Rahul ko WhatsApp pe bolo: kal milte hain', 'Contacts dikhao', 'Maa ka number save karo'],
+    system: () => {
+      const owner = store.get('owner', '') || 'user';
+      return `Tum RING ho, MYRA ki Call aur Message agent. User ka naam: ${owner}.
+Kaam: (1) Message: user jise bole (contact ka naam ya number) uske liye send_message se message taiyar karo. Channel default whatsapp, user sms bole to sms. Message user ke shabdon mein, saaf karke likho. (2) Call lagana: call_contact. (3) Contacts: save_contact, list_contacts. (4) Message ya call lene par take_message se save karo.
+Zaroori sach: message tab tak bheja hua mat maano jab tak user chat ka button tap karke send na dabaye; kaho 'taiyar hai, button dabao'. Call ka bhi yahi hai. Tum asli phone network par aane wali call receive nahi kar sakti. Call mode sirf is device ke mic aur speaker par baatcheet hai.
+Contact na mile to number poochho. Hinglish mein chhote jawab.` +
+      (AG.ring.call ? `\n\nABHI LIVE CALL CHAL RAHI HAI. Receptionist ki tarah baat karo: ${owner} ki taraf se call receive kar rahi ho. Sirf 1-2 chhote vaakya, koi formatting ya emoji nahi. Caller ka naam aur kaam poochho, take_message se save karo, phir saleeke se alvida kaho.` : '');
+    },
+    tools: [
+      { name: 'save_contact', description: 'Contact save karo', parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, phone: { type: 'STRING' } }, required: ['name', 'phone'] } },
+      { name: 'list_contacts', description: 'Saare contacts dikhao' },
+      { name: 'send_message', description: 'Kisi contact ya number ko message ka button taiyar karo', parameters: { type: 'OBJECT', properties: { to: { type: 'STRING', description: 'contact ka naam ya number' }, text: { type: 'STRING' }, channel: { type: 'STRING', description: 'whatsapp ya sms' } }, required: ['to', 'text'] } },
+      { name: 'call_contact', description: 'Kisi contact ko call lagane ka button taiyar karo', parameters: { type: 'OBJECT', properties: { to: { type: 'STRING' } }, required: ['to'] } },
+      { name: 'take_message', description: 'Caller ka sandesh user ke liye save karo', parameters: { type: 'OBJECT', properties: { from_name: { type: 'STRING' }, message: { type: 'STRING' }, callback_number: { type: 'STRING' } }, required: ['message'] } }
+    ],
+    exec: async (name, a, reply) => {
+      if (name === 'save_contact'){
+        const nm = String(a.name || '').trim(), ph = normNum(a.phone);
+        if (!nm || ph.length < 8) return { ok: false, error: 'naam ya number galat hai' };
+        const cs = store.get('contacts', []), ex = cs.find(c => c.name.toLowerCase() === nm.toLowerCase());
+        if (ex) ex.phone = ph; else cs.push({ id: uid(), name: nm, phone: ph });
+        if (!store.set('contacts', cs)) return { ok: false, error: 'storage blocked hai' };
+        logAct('Contact saved: ' + nm); return { ok: true };
+      }
+      if (name === 'list_contacts') return { ok: true, contacts: store.get('contacts', []).map(c => ({ name: c.name, phone: c.phone })) };
+      if (name === 'send_message' || name === 'call_contact'){
+        const c = findContact(a.to);
+        if (!c) return { ok: false, error: 'contact nahi mila. Number batao ya save_contact karo' };
+        const num = normNum(c.phone);
+        if (num.length < 8) return { ok: false, error: 'number galat hai' };
+        if (name === 'call_contact'){
+          reply.links.push({ url: 'tel:+' + num, label: 'Call: ' + c.name });
+          return { ok: true, note: 'Call ka button chat mein hai. Call tab lagegi jab user tap karega.' };
+        }
+        const text = String(a.text || '').trim();
+        if (!text) return { ok: false, error: 'message khaali hai' };
+        const ch = String(a.channel || 'whatsapp').toLowerCase() === 'sms' ? 'sms' : 'whatsapp';
+        const url = ch === 'sms' ? 'sms:+' + num + '?body=' + encodeURIComponent(text) : 'https://wa.me/' + num + '?text=' + encodeURIComponent(text);
+        reply.links.push({ url, label: (ch === 'sms' ? 'SMS' : 'WhatsApp') + ' bhejo: ' + c.name });
+        pushStore('msglog', { id: uid(), ts: Date.now(), to: c.name, text, channel: ch }, 60);
+        logAct('Message taiyar: ' + c.name);
+        return { ok: true, note: 'Message ka button chat mein hai. Bheja tab jayega jab user tap karke send dabayega.' };
+      }
+      if (name === 'take_message'){
+        const t = String(a.message || '').trim();
+        if (!t) return { ok: false, error: 'message khaali hai' };
+        if (!pushStore('inbox', { id: uid(), ts: Date.now(), from: String(a.from_name || 'Anjaan'), text: t, callback: String(a.callback_number || '') }, 60)) return { ok: false, error: 'storage blocked hai' };
+        logAct('Message liya: ' + t.slice(0, 50)); return { ok: true };
+      }
+      return { ok: false, error: 'unknown tool' };
+    }
+  }
+};
+const IDS = Object.keys(AG);
+IDS.forEach((id, i) => {
+  const a = AG[id]; a.id = id; a.msgs = []; a.hist = []; a.busy = false; a.say = null; a.idx = i + 1;
+  a.seat = { x: a.desk[0] + 21, y: a.desk[1] - 2 };
+  a.side = a.desk[0] + (id === 'ring' ? 62 : 50);
+  a.aisle = id === 'ring' ? 126 : 118;
+  a.sp = { mode: 'seat', x: a.seat.x, y: a.seat.y, dir: 1, path: [], pi: 0, dest: 'poi', idle: 3 + i * 2.5 + Math.random() * 4, wait: 0, anim: 0 };
+});
+
+/* ---------- agent log + packets on the pipeline ---------- */
+const packets = [];
+function nodeX(k){ return k === 0 ? 30 : 96 + (k - 1) * 58; }
+function packet(fromKey, toKey, color){
+  const k = (key) => key === 'myra' ? 0 : AG[key] ? AG[key].idx : -1;
+  const f = k(fromKey), t = k(toKey);
+  if (f < 0 || t < 0 || f === t) return;
+  packets.push({ x0: nodeX(f), x1: nodeX(t), t0: performance.now() / 1000, dur: 0.9, color });
+}
+function pushLog(e){ pushStore('alog', e, 40); if (!$('p-log').hidden) paintLog(); }
+
+async function runAgent(id, userText, from){
+  const a = AG[id];
+  if (a.busy) return { ok: false, text: a.name + ' abhi busy hai.' };
+  a.busy = true;
+  const src = from === 'MYRA' ? 'myra' : (from && AG[String(from).toLowerCase()] ? String(from).toLowerCase() : null);
+  if (src) packet(src, id, a.color);
+  a.say = { text: from && from !== 'CALL' ? from + ' se kaam mila' : a.doing, until: Infinity };
+  const reply = { role: 'ag', text: '', links: [], sources: [], pending: true };
+  a.msgs.push({ role: 'me', text: userText, from }, reply);
+  refresh();
+  const msgs = [...a.hist.slice(-(a.keep || 10)), { role: 'user', text: userText }];
+  let ran = 0, ok = true;
+  try {
+    for (let step = 0; step < 6; step++){
+      const r = await llmCall({ system: a.system(), msgs, tools: a.tools, grounded: !!a.grounded });
+      if (!r.calls.length || step === 5){
+        reply.text = (r.text || '').trim() || (ran ? 'Kaam ho gaya. Upar details dekho.' : 'Khaali jawab aaya. Dobara try karo.');
+        reply.sources = r.sources || [];
+        reply.via = r.fallback ? r.provider : '';
+        break;
+      }
+      msgs.push({ role: 'model', text: r.text, calls: r.calls, _g: r._g });
+      const results = [];
+      for (const c of r.calls){
+        ran++;
+        results.push({ id: c.id, gid: c.gid, name: c.name, response: await a.exec(c.name, c.args || {}, reply) });
+      }
+      msgs.push({ role: 'tool', results });
+    }
+    a.hist.push({ role: 'user', text: userText }, { role: 'model', text: reply.text });
+  } catch (e){ ok = false; reply.text = llmErrText(e); reply.error = true; }
+  reply.pending = false; a.busy = false;
+  a.say = { text: ok ? 'ho gaya \u2713' : 'dikkat aayi', until: Date.now() + 3200 };
+  if (src) packet(id, src, '#ffffff');
+  pushLog({ id: uid(), ts: Date.now(), from: from || 'AAP', to: a.name, task: userText.slice(0, 90), ok });
+  refresh();
+  return { ok, text: reply.text, reply };
+}
+async function newsToday(fresh){
+  const a = AG.pulse, day = new Date().toLocaleDateString('en-CA'), cached = store.get('news_' + day, null);
+  if (!fresh && cached){
+    a.msgs.push({ role: 'me', text: 'Aaj ki khabar' }, { role: 'ag', text: cached.text, links: [], sources: cached.sources || [], note: 'Aaj ka saved brief. Naya chahiye to Naya brief dabao.' });
+    refresh(); return;
+  }
+  const r = await runAgent('pulse', 'Aaj ki top khabrein do');
+  if (r.ok) store.set('news_' + day, { text: r.text, sources: r.reply.sources });
+}
+
+/* ---------- pixel town ---------- */
+const W = 480, H = 300;
+const cv = $('cv'), g = cv.getContext('2d');
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+const b = bg.getContext('2d');
+const R = (c, x, y, w, h2, col) => { c.fillStyle = col; c.fillRect(x | 0, y | 0, w, h2); };
+function checker(c, x0, y0, x1, y1, c1, c2){
+  for (let y = y0; y < y1; y += 8) for (let x = x0; x < x1; x += 8)
+    R(c, x, y, Math.min(8, x1 - x), Math.min(8, y1 - y), ((((x - x0) >> 3) + ((y - y0) >> 3)) & 1) ? c1 : c2);
+}
+function plant(c, x, y){ R(c, x, y + 8, 8, 6, '#7a4a2e'); R(c, x + 1, y, 6, 8, '#2f9e55'); R(c, x + 3, y - 3, 2, 4, '#46c070'); R(c, x - 1, y + 3, 2, 3, '#2f9e55'); R(c, x + 7, y + 2, 2, 3, '#46c070'); }
+function windowPx(c, x, y, k){
+  R(c, x, y, 32, 16, '#16243d'); R(c, x + 2, y + 2, 28, 12, '#0e1a30');
+  for (let i = 0; i < 5; i++) R(c, x + 3 + ((i * 11 + k * 7) % 26), y + 3 + ((i * 5 + k) % 8), 1, 1, '#9fc4e8');
+  R(c, x + 15, y, 1, 16, '#16243d');
+}
+function buildBG(){
+  R(b, 0, 0, W, 42, '#070c18'); R(b, 0, 41, W, 2, '#1c2740');
+  for (let x = 4; x < W; x += 14) for (let y = 5; y < 38; y += 8) R(b, x, y, 1, 1, '#10203a');
+  R(b, 48, 21, 372, 1, '#14506a'); for (let k = 1; k <= 6; k++) R(b, nodeX(k) - 29, 20, 3, 3, '#1c7a92');
+  checker(b, 0, 44, 300, H, '#121a2b', '#141e31');
+  checker(b, 304, 44, W, 170, '#171f31', '#19233a');
+  checker(b, 304, 174, W, H, '#0f1727', '#111b2d');
+  R(b, 0, 44, 300, 22, '#0a0f1c'); R(b, 0, 64, 300, 2, '#1c2740');
+  R(b, 304, 44, 176, 22, '#0a0f1c'); R(b, 304, 64, 176, 2, '#1c2740');
+  R(b, 300, 44, 4, H - 44, '#0c1220'); R(b, 300, 44, 1, H - 44, '#1e2a44');
+  R(b, 304, 170, 176, 4, '#0c1220'); R(b, 304, 170, 176, 1, '#1e2a44');
+  checker(b, 300, 110, 304, 150, '#171f31', '#19233a'); checker(b, 300, 212, 304, 252, '#0f1727', '#111b2d');
+  R(b, 299, 108, 6, 2, '#2a3a5c'); R(b, 299, 150, 6, 2, '#2a3a5c'); R(b, 299, 210, 6, 2, '#2a3a5c'); R(b, 299, 252, 6, 2, '#2a3a5c');
+  [10, 52, 94].forEach((x, k) => windowPx(b, x, 48, k));
+  R(b, 138, 46, 74, 20, '#2a2038'); ['#f2933f', '#2fd6e6', '#b58cff', '#5fe08a', '#ff7a90', '#ffd24a'].forEach((c, i) => { for (let r2 = 0; r2 < 2; r2++) R(b, 141 + i * 11 + r2 * 2, 49 + r2 * 9, 4, 7, c); });
+  R(b, 138, 56, 74, 1, '#1a1428');
+  R(b, 226, 47, 62, 17, '#cfd6e4'); R(b, 229, 50, 24, 2, '#2fd6e6'); R(b, 229, 54, 40, 2, '#f2933f'); R(b, 229, 58, 30, 2, '#b58cff'); R(b, 268, 50, 16, 12, '#5fe08a');
+  R(b, 318, 47, 96, 17, '#18233a'); for (let i = 0; i < 12; i++) { R(b, 322 + i * 7, 51, 4, 4, '#0c1424'); R(b, 322 + i * 7, 58, 4, 3, '#0c1424'); }
+  R(b, 430, 46, 20, 18, '#0d1626'); b.fillStyle = '#d8dde8'; b.beginPath(); b.arc(440, 55, 6, 0, TAU); b.fill(); R(b, 440, 51, 1, 5, '#222'); R(b, 440, 55, 3, 1, '#222');
+  R(b, 456, 48, 16, 14, '#2a3550'); R(b, 458, 50, 12, 6, '#0d1626'); R(b, 462, 58, 4, 3, '#2fd6e6');
+  IDS.forEach(id => { const [dx, dy] = AG[id].desk; R(b, dx + 19, dy + 4, 15, 14, '#1a2236'); R(b, dx + 19, dy + 4, 15, 2, '#232d46'); });
+  R(b, 20, 224, 62, 20, '#3b2a5a'); R(b, 20, 214, 62, 10, '#4b3670'); R(b, 26, 218, 16, 8, '#5d4590'); R(b, 60, 218, 16, 8, '#5d4590');
+  R(b, 40, 252, 22, 8, '#2a2038'); R(b, 44, 248, 14, 4, '#e8e8f0');
+  R(b, 8, 206, 120, 50, '#16213a'); R(b, 10, 208, 116, 46, '#1b2a48');
+  R(b, 150, 214, 22, 30, '#25304a'); [218, 226, 234].forEach(y => R(b, 152, y, 18, 2, '#3a4a6a'));
+  R(b, 258, 130, 12, 20, '#cfe3ef'); R(b, 259, 124, 10, 7, '#7fc9d3'); R(b, 260, 140, 3, 3, '#2a5a7a');
+  R(b, 262, 205, 18, 26, '#2a3550'); R(b, 264, 207, 14, 7, '#0d1626'); R(b, 268, 218, 6, 8, '#e0e0e8'); R(b, 276, 209, 2, 2, '#5fe08a');
+  R(b, 188, 232, 38, 6, '#2a2038'); R(b, 192, 222, 30, 10, '#f2933f'); R(b, 196, 219, 22, 4, '#ffbe73');
+  plant(b, 6, 74); plant(b, 280, 74); plant(b, 284, 276); plant(b, 110, 280); plant(b, 222, 112);
+  b.fillStyle = '#2b2040'; b.beginPath(); b.ellipse(392, 244, 32, 13, 0, 0, TAU); b.fill();
+  b.fillStyle = '#3b2a5a'; b.beginPath(); b.ellipse(392, 240, 30, 11, 0, 0, TAU); b.fill();
+  b.fillStyle = '#4b3670'; b.beginPath(); b.ellipse(392, 238, 24, 8, 0, 0, TAU); b.fill();
+  R(b, 340, 180, 112, 14, '#0d1626'); R(b, 341, 181, 110, 12, '#10203a');
+  plant(b, 312, 276); plant(b, 462, 276); plant(b, 312, 182);
+  R(b, 452, 196, 14, 22, '#2a3550'); R(b, 454, 198, 10, 6, '#0d1626'); R(b, 458, 208, 4, 6, '#e0e0e8');
+  R(b, 322, 130, 20, 16, '#2a2038'); R(b, 324, 128, 16, 4, '#4b3a60');
+  R(b, 440, 120, 14, 10, '#4b3a60'); R(b, 443, 112, 8, 8, '#e8e8f0');
+}
+buildBG();
+
+function drawHead(x, y, a, dir){
+  const hair = a.hair, skin = a.skin;
+  if (a.style === 1){ R(g, x + 2, y + 2, 2, 8, hair); R(g, x + 8, y + 2, 2, 8, hair); }
+  if (a.style === 3){ R(g, x + 2, y + 2, 2, 6, hair); R(g, x + 8, y + 2, 2, 6, hair); R(g, x + 4, y - 2, 4, 3, hair); }
+  R(g, x + 3, y + 3, 6, 6, skin);
+  R(g, x + 3, y, 6, 2, hair); R(g, x + 2, y + 1, 8, 2, hair);
+  if (a.style === 2){ R(g, x + 2, y + 1, 8, 2, a.color); R(g, dir > 0 ? x + 8 : x, y + 3, 4, 1, shade(a.color, -0.3)); }
+  R(g, x + 4, y + 5, 1, 2, '#101018'); R(g, x + 7, y + 5, 1, 2, '#101018');
+  R(g, x + 5, y + 8, 2, 1, '#b0655a');
+}
+function drawBody(x, y, a){
+  R(g, x + 5, y + 9, 2, 1, a.skin);
+  R(g, x + 2, y + 10, 8, 6, a.color); R(g, x + 2, y + 14, 8, 2, shade(a.color, -0.3)); R(g, x + 5, y + 10, 2, 1, a.skin);
+}
+function drawStanding(a, t){
+  const s = a.sp, x = Math.round(s.x), y = Math.round(s.y), walking = s.mode === 'walk';
+  const ph = walking ? ((s.anim * 8) | 0) % 2 : 0, pants = '#27324d';
+  R(g, x + 1, y + 20, 10, 1, 'rgba(0,0,0,.35)');
+  R(g, x + 3, y + 16, 3, ph ? 3 : 4, pants); R(g, x + 6, y + 16, 3, ph ? 4 : 3, pants);
+  R(g, x + 3, y + (ph ? 19 : 20), 3, 1, '#161a28'); R(g, x + 6, y + (ph ? 20 : 19), 3, 1, '#161a28');
+  drawBody(x, y, a);
+  R(g, x, y + 10 + (ph ? 1 : 0), 2, 5, a.color); R(g, x + 10, y + 10 + (ph ? 0 : 1), 2, 5, a.color);
+  R(g, x, y + 15 + (ph ? 1 : 0), 2, 1, a.skin); R(g, x + 10, y + 15 + (ph ? 0 : 1), 2, 1, a.skin);
+  drawHead(x, y, a, s.dir);
+}
+function drawSeated(a, t){
+  const s = a.sp, x = a.seat.x, y = a.seat.y, busy = a.busy || a.call;
+  const bob = (!busy && !RM && ((t * 1.1) | 0) % 2) ? 1 : 0;
+  drawBody(x, y + bob, a);
+  R(g, x, y + 10 + bob, 2, 5, a.color); R(g, x + 10, y + 10 + bob, 2, 5, a.color);
+  const blink = !RM && (t % 3.6) > 3.45;
+  drawHead(x, y + bob, a, 1);
+  if (blink) { R(g, x + 4, y + 5 + bob, 1, 2, a.skin); R(g, x + 7, y + 5 + bob, 1, 2, a.skin); }
+}
+function drawDesk(a, t){
+  const [x, y] = a.desk, busy = a.busy || a.call, T = RM ? 0 : t, c = a.color;
+  const wide = a.id === 'ring';
+  const dw = wide ? 56 : 44;
+  R(g, x, y + 14, dw, 14, '#4b3a60'); R(g, x, y + 14, dw, 2, '#614b7a'); R(g, x, y + 28, dw, 2, '#2b2040');
+  R(g, x + 2, y + 30, 3, 3, '#2b2040'); R(g, x + dw - 5, y + 30, 3, 3, '#2b2040');
+  const flick = busy ? (((T * 6) | 0) % 3) : 0;
+  R(g, x + 3, y + 3, 15, 11, '#0d1626'); R(g, x + 4, y + 4, 13, 8, busy ? ['#1fa9c0', '#2fd6e6', '#17889c'][flick] : '#14364a'); R(g, x + 9, y + 14, 3, 2, '#0d1626');
+  if (busy){ for (let i = 0; i < 4; i++) R(g, x + 5, y + 5 + i * 2, 3 + ((i * 5 + ((T * 6) | 0)) % 8), 1, '#e8fdff'); g.fillStyle = 'rgba(47,214,230,.10)'; g.fillRect(x - 2, y + 1, 22, 17); }
+  else R(g, x + 5, y + 6, 6, 1, '#2b6a85');
+  R(g, x + 22, y + 19, 10, 2, '#8a93a8');
+  R(g, x + 22, y + 13 + (busy && ((T * 8) | 0) % 2 ? 1 : 0), 2, 4, c); R(g, x + 30, y + 13 + (busy && ((T * 8 + 1) | 0) % 2 ? 1 : 0), 2, 4, c);
+  if (a.id === 'ring'){
+    const on = a.busy || a.call, blinkP = on && ((T * 3) | 0) % 2;
+    R(g, x + 36, y + 16, 12, 6, '#202a40'); R(g, x + 38, y + 14, 8, 3, blinkP ? '#ffd24a' : '#4a4030'); R(g, x + 44, y + 20, 3, 1, '#0d1626');
+    R(g, x + 36, y + 8, 3, 6, '#2a2a38'); R(g, x + 34, y + 6, 7, 2, '#2a2a38');
+    if (on) for (let k = 0; k < 2; k++) { g.strokeStyle = 'rgba(255,210,74,' + (0.7 - k * 0.3) + ')'; g.strokeRect(x + 36 - k * 3 + 0.5, y + 4 - k * 3 + 0.5, 8 + k * 6, 8 + k * 6); }
+  } else { R(g, x + 37, y + 17, 3, 3, '#e6e6ea'); R(g, x + 36, y + 21, 6, 1, '#cfd0d8'); }
+  if (busy) for (let k = 0; k < 3; k++) R(g, x + 22 + k * 4, y - 6 - ((((T * 5) | 0) + k) % 3 === 0 ? 1 : 0), 2, 2, c);
+  if (sel === a.id){ g.strokeStyle = c; g.lineWidth = 1; g.strokeRect(x - 2.5, y - 8.5, dw + 5, 46); }
+}
+function drawBand(t){
+  const T = RM ? 0 : t, now = performance.now() / 1000;
+  const mx = nodeX(0);
+  const gl = g.createRadialGradient(mx, 21, 1, mx, 21, 15); gl.addColorStop(0, 'rgba(120,238,248,.9)'); gl.addColorStop(1, 'rgba(47,214,230,0)');
+  g.fillStyle = gl; g.beginPath(); g.arc(mx, 21, 15, 0, TAU); g.fill();
+  g.fillStyle = '#7deef8'; g.beginPath(); g.arc(mx, 21, 6 + (RM ? 0 : Math.sin(T * 3)), 0, TAU); g.fill();
+  R(g, mx - 2, 19, 4, 4, '#0b1626');
+  IDS.forEach(id => {
+    const a = AG[id], x = nodeX(a.idx), busy = a.busy || a.call;
+    R(g, x - 10, 11, 20, 20, a.color); R(g, x - 9, 12, 18, 18, '#0b1626');
+    R(g, x - 4, 15, 8, 8, a.skin); R(g, x - 4, 14, 8, 3, a.hair); R(g, x - 3, 18, 1, 2, '#101018'); R(g, x + 1, 18, 1, 2, '#101018');
+    R(g, x - 5, 24, 10, 5, a.color);
+    R(g, x + 6, 8, 4, 4, busy ? (((T * 4) | 0) % 2 ? a.color : '#ffffff') : '#2e6a4a');
+  });
+  for (let i = packets.length - 1; i >= 0; i--){
+    const p = packets[i], u = (now - p.t0) / p.dur;
+    if (u > 1){ packets.splice(i, 1); continue; }
+    const e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2, x = p.x0 + (p.x1 - p.x0) * e;
+    g.fillStyle = p.color; g.globalAlpha = .3; g.fillRect(x - 9 * Math.sign(p.x1 - p.x0), 19, 9, 5); g.globalAlpha = 1; g.fillRect(x - 3, 18, 6, 6);
+  }
+}
+function drawHub(t){
+  const T = RM ? 0 : t, ox = 392, oy = 214;
+  const bars = IDS.length;
+  IDS.forEach((id, i) => { const a = AG[id], on = a.busy || a.call; R(g, 345 + i * 17, 191 - (on ? 9 : 3), 12, on ? 9 : 3, on ? a.color : '#244058'); });
+  const gl = g.createRadialGradient(ox, oy, 2, ox, oy, 30); gl.addColorStop(0, 'rgba(120,238,248,.55)'); gl.addColorStop(1, 'rgba(47,214,230,0)');
+  g.fillStyle = gl; g.beginPath(); g.arc(ox, oy, 30, 0, TAU); g.fill();
+  g.fillStyle = '#9ff4fc'; g.beginPath(); g.arc(ox, oy, 8 + (RM ? 0 : Math.sin(T * 2.4) * 1.2), 0, TAU); g.fill();
+  for (let i = 0; i < 8; i++){ const an = T * .9 + i * TAU / 8; R(g, ox + Math.cos(an) * 22, oy + 22 + Math.sin(an) * 7 - 12, 2, 2, '#7deef8'); }
+  const cx = 336, cy = 276;
+  R(g, cx - 6, cy, 22, 12, '#2a2a38'); R(g, cx - 8, cy - 2, 26, 3, '#3a3a4c'); R(g, cx - 4, cy - 4, 18, 3, '#2fd36a');
+  for (let i = 0; i < 3; i++){ const u = ((T * .8 + i / 3) % 1); R(g, cx + 2 + i * 5 - 2, cy - 5 - u * 12, 2, 2, '#7dffb0'); }
+}
+let sel = null, hov = null, paused = false;
+function step(dt){
+  if (paused) return;
+  IDS.forEach(id => {
+    const a = AG[id], s = a.sp, want = a.busy || a.call;
+    const pois = id === 'ring' ? [{ x: 330, y: 132 }, { x: 428, y: 124 }, { x: 452, y: 90 }] : [{ x: 256, y: 90 }, { x: 258, y: 156 }, { x: 262, y: 236 }, { x: 70, y: 236 }, { x: 150, y: 250 }];
+    const out = () => { const p = pois[(Math.random() * pois.length) | 0]; return [{ x: a.side, y: a.seat.y + 4 }, { x: a.side, y: a.aisle }, { x: p.x, y: a.aisle }, { x: p.x, y: p.y }]; };
+    const back = () => [{ x: s.x, y: a.aisle }, { x: a.side, y: a.aisle }, { x: a.side, y: a.seat.y + 4 }, { x: a.seat.x, y: a.seat.y }];
+    if (s.mode === 'seat'){
+      if (want || RM) return;
+      s.idle -= dt;
+      if (s.idle <= 0){ s.path = out(); s.pi = 0; s.mode = 'walk'; s.dest = 'poi'; }
+      return;
+    }
+    if (want && s.dest !== 'seat'){ s.path = back(); s.pi = 0; s.mode = 'walk'; s.dest = 'seat'; }
+    if (s.mode === 'stand'){
+      s.wait -= dt;
+      if (s.wait <= 0){ s.path = back(); s.pi = 0; s.mode = 'walk'; s.dest = 'seat'; }
+      return;
+    }
+    const p = s.path[s.pi]; if (!p){ s.mode = 'seat'; s.x = a.seat.x; s.y = a.seat.y; return; }
+    const dx = p.x - s.x, dy = p.y - s.y, d = Math.hypot(dx, dy), sp = 42 * dt;
+    s.anim += dt;
+    if (d <= sp){
+      s.x = p.x; s.y = p.y; s.pi++;
+      if (s.pi >= s.path.length){
+        if (s.dest === 'seat'){ s.mode = 'seat'; s.idle = 7 + Math.random() * 14; s.x = a.seat.x; s.y = a.seat.y; }
+        else { s.mode = 'stand'; s.wait = 3 + Math.random() * 4; }
+      }
+    } else { s.x += dx / d * sp; s.y += dy / d * sp; if (Math.abs(dx) > .5) s.dir = dx > 0 ? 1 : -1; }
+  });
+}
+let lastT = performance.now(), lastDraw = 0, inView = true;
+if ('IntersectionObserver' in window) new IntersectionObserver((es) => { inView = es[0].isIntersecting; }).observe(root);
+function frame(now){
+  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  if (inView && !$('p-office').hidden){
+    step(dt);
+    if (now - lastDraw > 70){
+      lastDraw = now; const t = now / 1000;
+      g.drawImage(bg, 0, 0);
+      drawBand(t); drawHub(t);
+      const items = [];
+      IDS.forEach(id => {
+        const a = AG[id], s = a.sp;
+        items.push({ y: a.desk[1] + 30, f: () => drawDesk(a, t) });
+        items.push({ y: s.mode === 'seat' ? a.desk[1] + 13 : s.y + 20, f: () => s.mode === 'seat' ? drawSeated(a, t) : drawStanding(a, t) });
+      });
+      items.sort((p, q) => p.y - q.y).forEach(i => i.f());
+      updateSay();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function updateSay(){
+  const now = Date.now();
+  IDS.forEach(id => {
+    const a = AG[id], el = $('say-' + id);
+    let txt = '';
+    if (a.say && a.say.until > now) txt = a.say.text;
+    else if (a.call) txt = 'call chal rahi hai';
+    else if (hov === id) txt = 'TAP \u25B8 baat karo';
+    if (!txt){ if (!el.hidden) el.hidden = true; return; }
+    const s = a.sp, x = ((s.mode === 'seat' ? a.seat.x : s.x) + 6) / W * 100, y = ((s.mode === 'seat' ? a.seat.y : s.y) - 3) / H * 100;
+    if (el.textContent !== txt) el.textContent = txt;
+    el.style.left = x.toFixed(2) + '%'; el.style.top = y.toFixed(2) + '%'; el.hidden = false;
+  });
+}
+function hitTest(ev){
+  const r = cv.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * W, y = (ev.clientY - r.top) / r.height * H;
+  if (y < 42){
+    if (x < 50) return 'myra';
+    const k = Math.round((x - 96) / 58) + 1;
+    if (k >= 1 && k <= IDS.length && Math.abs(x - nodeX(k)) < 14) return IDS[k - 1];
+    return null;
+  }
+  if (x > 330 && x < 454 && y > 176 && y < 266) return 'myra';
+  const found = IDS.find(id => { const a = AG[id], s = a.sp, [dx, dy] = a.desk; const dw = id === 'ring' ? 58 : 46;
+    return (x >= dx - 2 && x <= dx + dw && y >= dy - 8 && y <= dy + 34) || (s.mode !== 'seat' && x >= s.x - 2 && x <= s.x + 14 && y >= s.y - 3 && y <= s.y + 22); });
+  return found || null;
+}
+cv.addEventListener('click', (e) => { const id = hitTest(e); if (id === 'myra') toMyra(); else if (id) openAgent(id); });
+cv.addEventListener('mousemove', (e) => { const id = hitTest(e); hov = id && id !== 'myra' ? id : null; cv.style.cursor = id ? 'pointer' : 'default'; });
+cv.addEventListener('mouseleave', () => { hov = null; });
+
+/* ---------- tags + roster ---------- */
+IDS.forEach(id => {
+  const a = AG[id], wdt = id === 'ring' ? 28 : 22;
+  const t = h('button', 'tag'); t.id = 'ag-tag-' + id; t.style.setProperty('--c', a.color);
+  t.style.left = ((a.desk[0] + wdt) / W * 100) + '%'; t.style.top = ((a.desk[1] + 35) / H * 100) + '%';
+  t.innerHTML = '<i></i>'; t.append(a.name);
+  t.setAttribute('aria-label', a.name + ', ' + a.role + ' agent kholo');
+  t.onclick = () => openAgent(id);
+  $('tags').appendChild(t);
+  const say = h('div', 'say'); say.id = 'ag-say-' + id; say.hidden = true; say.style.setProperty('--c', a.color);
+  $('tags').appendChild(say);
+  const li = document.createElement('li');
+  li.innerHTML = `<button class='card' id='ag-card-${id}'><b><i></i>${a.name}</b><span>${a.role}</span><small id='ag-st-${id}'></small></button>`;
+  const cd = li.firstChild; cd.style.setProperty('--c', a.color); cd.onclick = () => openAgent(id);
+  $('menu').appendChild(li);
+});
+function refresh(){
+  let n = 0;
+  IDS.forEach(id => {
+    const a = AG[id], on = a.busy || a.call; if (on) n++;
+    $('tag-' + id).classList.toggle('busy', on);
+    $('card-' + id).classList.toggle('busy', on);
+    $('st-' + id).textContent = a.call ? 'Call chal rahi hai...' : (a.busy ? 'Kaam kar raha hai...' : a.blurb);
+  });
+  const k = hasAnyKey();
+  $('hud-st').textContent = k ? 'MYRA ONLINE' : 'KEY NAHI'; $('hud-st').className = 'hb ' + (k ? 'ok' : 'bad');
+  $('hud-model').textContent = 'MODEL: ' + (store.get('model', '') || GEM_DEFAULT); paintProv();
+  $('hud-n').textContent = n + '/' + IDS.length + ' busy';
+  if (cur) paintMsgs();
+}
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'CHALAO' : 'PAUSE'; $('pause').setAttribute('aria-pressed', String(paused)); };
+$('hud-model').onclick = () => openCfg();
+
+/* ---------- tabs, hub, log ---------- */
+function showTab(t){
+  document.querySelectorAll('#agents .tabs button').forEach(bt => bt.setAttribute('aria-selected', String(bt.dataset.t === t)));
+  $('p-office').hidden = t !== 'office'; $('p-hub').hidden = t !== 'hub'; $('p-log').hidden = t !== 'log';
+  if (t === 'hub') paintHub(); if (t === 'log') paintLog();
+}
+document.querySelectorAll('#agents .tabs button').forEach(bt => bt.onclick = () => showTab(bt.dataset.t));
+const fmt = (ts) => new Date(ts).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+function hubCard(grid, title, items, empty, onDel){
+  const c = h('div', 'pc'); c.appendChild(h('h3', null, title));
+  const ul = h('ul');
+  if (!items.length) c.appendChild(h('div', 'emp', empty));
+  items.forEach((it, i) => {
+    const li = h('li'), s = h('span', null, it.t);
+    if (it.s){ s.appendChild(h('small', null, it.s)); }
+    li.appendChild(s);
+    if (onDel){ const x = h('button', null, '\u00d7'); x.setAttribute('aria-label', 'Hatao'); x.onclick = () => onDel(it, i); li.appendChild(x); }
+    ul.appendChild(li);
+  });
+  if (items.length) c.appendChild(ul);
+  grid.appendChild(c); return c;
+}
+function paintHub(){
+  const box = $('p-hub'); box.innerHTML = '';
+  const grid = h('div', 'pg'); box.appendChild(grid);
+  hubCard(grid, 'AAJ KE TASKS', store.get('tasks', []).filter(t => !t.done).map(t => ({ id: t.id, t: t.text, s: t.due ? fmt(t.due) : '' })), 'Koi open task nahi.',
+    (it) => { const a = store.get('tasks', []), x = a.find(z => z.id === it.id); if (x){ x.done = true; store.set('tasks', a); } paintHub(); });
+  hubCard(grid, 'INBOX (CALL AUR SANDESH)', store.get('inbox', []).map(m => ({ id: m.id, t: m.from + ': ' + m.text, s: fmt(m.ts) + (m.callback ? ' | ' + m.callback : '') })), 'Abhi koi sandesh nahi. Ring call mode mein sandesh yahan save karti hai.',
+    (it) => { store.set('inbox', store.get('inbox', []).filter(z => z.id !== it.id)); paintHub(); });
+  const cc2 = hubCard(grid, 'CONTACTS', store.get('contacts', []).map(c => ({ id: c.id, t: c.name, s: '+' + c.phone })), 'Koi contact nahi. Neeche add karo ya Ring se bolo.',
+    (it) => { store.set('contacts', store.get('contacts', []).filter(z => z.id !== it.id)); paintHub(); });
+  const f = h('form'), ni = h('input'), pi = h('input'), sb = h('button', null, 'ADD');
+  ni.placeholder = 'Naam'; ni.setAttribute('aria-label', 'Contact ka naam'); pi.placeholder = 'Number'; pi.inputMode = 'tel'; pi.setAttribute('aria-label', 'Contact ka number'); sb.type = 'submit';
+  f.append(ni, pi, sb);
+  f.onsubmit = (e) => { e.preventDefault(); const nm = ni.value.trim(), ph = normNum(pi.value); if (!nm || ph.length < 8) return toast('Naam aur sahi number daalo.'); const cs = store.get('contacts', []); cs.push({ id: uid(), name: nm, phone: ph }); store.set('contacts', cs); paintHub(); };
+  cc2.appendChild(f);
+  hubCard(grid, 'MESSAGE LOG (TAIYAR KIYE)', store.get('msglog', []).map(m => ({ id: m.id, t: m.to + ': ' + m.text, s: fmt(m.ts) + ' | ' + m.channel })), 'Abhi koi message taiyar nahi hua.');
+  hubCard(grid, 'NOTES', store.get('notes', []).slice(0, 10).map(n => ({ id: n.id, t: n.text, s: fmt(n.ts) })), 'Koi note nahi.');
+  hubCard(grid, 'MEMORY', store.get('mem', []).map(m => ({ t: m })), 'Memory khaali hai.');
+}
+function paintLog(){
+  const box = $('p-log'); box.innerHTML = '';
+  const ent = store.get('alog', []);
+  if (!ent.length){ box.appendChild(h('div', 'emp', 'Abhi koi agent kaam nahi hua. Kisi agent ko kaam do ya Myra se bolo.')); return; }
+  const ul = h('ul', 'lg');
+  ent.forEach(e => {
+    const li = h('li', e.ok ? '' : 'bad'), t = h('div', 't', e.task);
+    t.appendChild(h('small', null, fmt(e.ts) + (e.ok ? '' : ' | fail')));
+    li.append(h('b', null, e.from + ' \u2192 ' + e.to), t); ul.appendChild(li);
+  });
+  box.appendChild(ul);
+}
+
+/* ---------- messages ---------- */
+function inline(el, line){
+  line.split('**').forEach((s, i) => { if (!s) return; if (i % 2){ const bb = document.createElement('strong'); bb.textContent = s; el.appendChild(bb); } else el.append(s); });
+}
+function para(parent, text){
+  text.split('\n').forEach(raw => {
+    let l = raw.trim(); if (!l) return;
+    l = l.replace(/^#{1,6}\s*/, '').replace(/^[*-]\s+/, '\u2022 ');
+    const p = document.createElement('p'); inline(p, l); parent.appendChild(p);
+  });
+}
+const EXT = { html: 'html', python: 'py', py: 'py', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', css: 'css', json: 'json', java: 'java', cpp: 'cpp', c: 'c', bash: 'sh', sh: 'sh', sql: 'sql', kotlin: 'kt', go: 'go', rust: 'rs' };
+function save(name, text, type){
+  const url = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+async function copy(text){ try { await navigator.clipboard.writeText(text); toast('Copy ho gaya.'); } catch { toast('Copy nahi hua. Code ko select karke copy karo.'); } }
+function codeBlock(parent, lang, code){
+  const d = h('div', 'code'), hd = h('header'), l = h('span', null, lang || 'code'), bx = h('div');
+  const cp = h('button', 'sm', 'Copy'); cp.onclick = () => copy(code);
+  const dl = h('button', 'sm', 'Download'); dl.onclick = () => save('myra-code.' + (EXT[(lang || '').toLowerCase()] || 'txt'), code);
+  bx.append(cp, dl); hd.append(l, bx);
+  const pre = h('pre'), c = h('code', null, code); pre.appendChild(c); d.append(hd, pre); parent.appendChild(d);
+}
+function rich(parent, text){
+  const re = /```([a-zA-Z0-9+#-]*)\n([\s\S]*?)```/g; let last = 0, m;
+  while ((m = re.exec(text))){ if (m.index > last) para(parent, text.slice(last, m.index)); codeBlock(parent, m[1], m[2].replace(/\n$/, '')); last = re.lastIndex; }
+  if (last < text.length) para(parent, text.slice(last));
+}
+function preview(parent, html){
+  const w = h('div', 'prev'), hd = h('header');
+  const fs = h('button', 'sm', 'Poori screen'), dl = h('button', 'sm', 'Download app'); dl.onclick = () => save('myra-app.html', html, 'text/html');
+  const fr = h('iframe'); fr.setAttribute('sandbox', 'allow-scripts'); fr.title = 'App preview'; fr.srcdoc = html;
+  fs.onclick = () => { const f = w.classList.toggle('full'); fs.textContent = f ? 'Band karo' : 'Poori screen'; };
+  hd.append(fs, dl); w.append(hd, fr); parent.appendChild(w);
+}
+function paintMsgs(){
+  const a = AG[cur], box = $('msgs'), near = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = '';
+  if (!a.msgs.length) box.appendChild(h('div', 'empty', a.name + ' ready hai. ' + a.blurb + '. Neeche se kaam chuno ya khud likho.'));
+  a.msgs.forEach(m => {
+    const bb = h('div');
+    if (m.role === 'me'){
+      bb.className = 'b me';
+      if (m.from) bb.appendChild(h('span', 'from', m.from + ' se'));
+      bb.append(m.text);
+    } else {
+      bb.className = 'b ag' + (m.error ? ' err' : '');
+      if (m.pending) bb.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+      else {
+        if (m.note) bb.appendChild(h('span', 'from', m.note));
+        if (m.via) bb.appendChild(h('span', 'from', 'via ' + m.via.toUpperCase() + ' (auto shift)'));
+        rich(bb, m.text);
+        if (m.links && m.links.length){
+          const ls = h('div', 'links');
+          m.links.forEach(L => { const x = h('a', null, L.label.startsWith('Call') || L.label.includes(':') ? L.label : 'Kholo: ' + L.label); x.href = L.url; x.target = '_blank'; x.rel = 'noopener noreferrer'; ls.appendChild(x); });
+          bb.appendChild(ls);
+        }
+        if (cur === 'forge'){ const mm = /```html\n([\s\S]*?)```/.exec(m.text); if (mm) preview(bb, mm[1]); }
+        if (m.sources && m.sources.length){
+          const ls = h('div', 'links srcs');
+          m.sources.forEach(s => { const x = h('a', null, s.title); x.href = s.uri; x.target = '_blank'; x.rel = 'noopener noreferrer'; ls.appendChild(x); });
+          bb.appendChild(ls);
+        }
+      }
+    }
+    box.appendChild(bb);
+  });
+  if (near || a.msgs.length <= 2) box.scrollTop = box.scrollHeight;
+  $('send').disabled = a.busy; $('txt').disabled = a.busy;
+}
+
+/* ---------- drawer ---------- */
+let cur = null;
+function openAgent(id){
+  cur = id; sel = id;
+  const a = AG[id], d = $('drawer');
+  d.style.setProperty('--c', a.color);
+  $('dn').textContent = a.name + ' \u00b7 ' + a.role; $('dr').textContent = a.blurb;
+  const ch = $('chips'); ch.innerHTML = '';
+  a.chips.forEach((t, i) => {
+    const bt = h('button', null, t);
+    bt.onclick = () => { if (id === 'pulse' && i < 2) newsToday(i === 1); else send(t); };
+    ch.appendChild(bt);
+  });
+  $('callbar').classList.toggle('show', id === 'ring'); setCallUI();
+  $('veil').hidden = false; d.hidden = false;
+  paintMsgs(); refresh();
+  setTimeout(() => { if (!a.busy) $('txt').focus(); }, 50);
+}
+function closeAgent(){ stopMic(); $('drawer').hidden = true; $('veil').hidden = true; cur = null; sel = null; }
+$('dx').onclick = closeAgent; $('veil').onclick = closeAgent;
+function send(text){
+  const t = (text || '').trim(); if (!t || !cur || AG[cur].busy) return;
+  $('txt').value = ''; runAgent(cur, t);
+}
+$('send').onclick = () => send($('txt').value);
+$('txt').addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); send($('txt').value); } });
+
+/* ---------- mic (typing) ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function stopMic(){ listening = false; $('mic').classList.remove('on'); $('mic').setAttribute('aria-pressed', 'false'); if (rec){ try { rec.stop(); } catch {} } }
+$('mic').onclick = () => {
+  if (listening) return stopMic();
+  if (!SR) return toast('Mic typing ke liye Chrome ya Edge use karo.');
+  rec = new SR(); rec.lang = store.get('lang', 'hi-IN'); rec.interimResults = true; rec.continuous = false;
+  let fin = '';
+  rec.onstart = () => { listening = true; $('mic').classList.add('on'); $('mic').setAttribute('aria-pressed', 'true'); };
+  rec.onresult = (e) => { let im = ''; for (let i = e.resultIndex; i < e.results.length; i++){ const t = e.results[i][0].transcript; if (e.results[i].isFinal) fin += t; else im += t; } $('txt').value = fin + im; };
+  rec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Mic blocked hai. Browser mein Allow karo (HTTPS page chahiye).'); else if (e.error !== 'aborted' && e.error !== 'no-speech') toast('Mic error: ' + e.error); };
+  rec.onend = () => { const had = listening; stopMic(); const t = (fin || $('txt').value).trim(); if (had && t) send(t); };
+  try { rec.start(); } catch { toast('Mic start nahi hua. Dobara dabao.'); }
+};
+
+/* ---------- Ring call mode (in-app voice session) ---------- */
+let callOn = false, callRec = null, vAudio = null;
+function plain(t){ return String(t).replace(/```[\s\S]*?```/g, ' ').replace(/[*#_`]/g, '').replace(/https?:\/\/\S+/g, '').trim(); }
+function voiceSay(text){
+  return new Promise(async (res) => {
+    const xk = store.get('xikey', '');
+    if (xk){
+      try {
+        const vid = store.get('xivoice', '21m00Tcm4TlvDq8ikWAM') || '21m00Tcm4TlvDq8ikWAM';
+        const model = normModel(store.get('ximodel', '')) || 'eleven_multilingual_v2';
+        const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(vid), { method: 'POST', headers: { 'xi-api-key': xk, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' }, body: JSON.stringify({ text, model_id: model }) });
+        if (r.ok){
+          const url = URL.createObjectURL(await r.blob()), au = new Audio(url); vAudio = au;
+          au.onended = au.onerror = () => { URL.revokeObjectURL(url); vAudio = null; res(); };
+          await au.play(); return;
+        }
+      } catch {}
+    }
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text); u.lang = store.get('lang', 'hi-IN');
+      u.onend = u.onerror = () => res();
+      speechSynthesis.speak(u);
+    } catch { res(); }
+  });
+}
+function listenOnce(ms){
+  return new Promise((res) => {
+    if (!SR) return res('');
+    const r = new SR(); r.lang = store.get('lang', 'hi-IN'); r.interimResults = false; r.continuous = false;
+    let out = ''; const to = setTimeout(() => { try { r.stop(); } catch {} }, ms || 12000);
+    r.onresult = (e) => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) out += e.results[i][0].transcript; };
+    r.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){ toast('Mic blocked hai. Browser mein Allow karo (HTTPS page chahiye).'); callOn = false; } };
+    r.onend = () => { clearTimeout(to); callRec = null; res(out.trim()); };
+    callRec = r; try { r.start(); } catch { res(''); }
+  });
+}
+function setCallUI(){
+  AG.ring.call = callOn;
+  $('callst').textContent = callOn ? 'CALL LIVE' : 'Call mode band hai'; $('callst').className = callOn ? 'live' : '';
+  $('callbtn').textContent = callOn ? 'CALL KHATAM KARO' : 'CALL MODE SHURU';
+  if (typeof refresh === 'function') refresh();
+}
+function endCall(){
+  callOn = false;
+  if (callRec){ try { callRec.stop(); } catch {} }
+  if (vAudio){ try { vAudio.pause(); } catch {} vAudio = null; }
+  try { speechSynthesis.cancel(); } catch {}
+  setCallUI();
+}
+async function startCall(){
+  if (callOn) return;
+  if (!SR) return toast('Call mode ke liye Chrome ya Edge chahiye (mic ke liye).');
+  if (!store.get('key', '')) return toast('Pehle Setting mein Gemini API key daalo.');
+  callOn = true; setCallUI();
+  const owner = store.get('owner', '') || 'sahab';
+  AG.ring.msgs.push({ role: 'ag', text: 'Call mode shuru. Main ' + owner + ' ki taraf se call receive kar rahi hoon. Ye is device ke mic aur speaker par chalti baatcheet hai.', links: [], sources: [] });
+  if (cur === 'ring') paintMsgs();
+  await voiceSay('Hello, main ' + owner + ' ki assistant Ring bol rahi hoon. Boliye, kya kaam hai?');
+  let silent = 0;
+  while (callOn){
+    const heard = await listenOnce();
+    if (!callOn) break;
+    if (!heard){ if (++silent >= 2){ await voiceSay('Koi awaaz nahi aa rahi. Main call band kar rahi hoon. Dhanyavaad.'); break; } continue; }
+    silent = 0;
+    const r = await runAgent('ring', heard, 'CALL');
+    if (!callOn) break;
+    await voiceSay(r.ok ? (plain(r.text) || 'Ji, theek hai.') : 'Maaf kijiye, abhi technical dikkat hai.');
+    if (!r.ok) break;
+  }
+  endCall();
+}
+$('callbtn').onclick = () => callOn ? endCall() : startCall();
+
+/* ---------- settings ---------- */
+function openCfg(){
+  $('c-key').value = store.get('key', ''); $('c-model').value = store.get('model', ''); $('c-ckey').value = store.get('ckey', '');
+  $('c-owner').value = store.get('owner', ''); $('c-cc').value = store.get('cc', '91');
+  $('cfgm').hidden = false; $('c-key').focus();
+}
+function closeCfg(){ $('cfgm').hidden = true; refresh(); }
+$('cfg').onclick = openCfg; $('hud-st').onclick = openCfg; $('cx').onclick = closeCfg;
+$('cfgm').addEventListener('click', (e) => { if (e.target === $('cfgm')) closeCfg(); });
+$('c-key').oninput = (e) => { store.set('key', e.target.value.trim()); refresh(); };
+$('c-model').oninput = (e) => { store.set('model', e.target.value.trim()); refresh(); };
+$('c-ckey').oninput = (e) => { store.set('ckey', e.target.value.trim()); refresh(); };
+$('c-owner').oninput = (e) => store.set('owner', e.target.value.trim());
+$('c-cc').oninput = (e) => store.set('cc', e.target.value.replace(/\D/g, '') || '91');
+
+/* ---------- town controls + API for MYRA ---------- */
+function openAgents(){ showTab('office'); root.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); refresh(); }
+function toMyra(){ if (callOn) endCall(); if (cur) closeAgent(); $('cfgm').hidden = true; setFs(false); const s = document.scrollingElement || document.documentElement; s.scrollTo({ top: 0, behavior: RM ? 'auto' : 'smooth' }); }
+function setFs(on){ root.classList.toggle('fs', on); $('fs').setAttribute('aria-pressed', String(on)); if (on) root.scrollTop = 0; }
+$('fs').onclick = () => setFs(!root.classList.contains('fs'));
+$('rs').onclick = () => { IDS.forEach(id => { const a = AG[id]; a.sp.mode = 'seat'; a.sp.x = a.seat.x; a.sp.y = a.seat.y; a.sp.idle = 4 + Math.random() * 8; }); toast('Sab agents apni seat par.'); };
+$('menubtn').onclick = () => { const m = $('menu'); m.hidden = !m.hidden; $('menubtn').setAttribute('aria-expanded', String(!m.hidden)); };
+$('menu').addEventListener('click', () => { $('menu').hidden = true; $('menubtn').setAttribute('aria-expanded', 'false'); });
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('cfgm').hidden) closeCfg(); else if (cur) closeAgent(); else if (root.classList.contains('fs')) setFs(false);
+});
+window.MYRA_AGENTS = {
+  open: openAgents, close: toMyra, ids: IDS,
+  show: (id) => { openAgents(); if (AG[id]) openAgent(id); },
+  run: (id, text, from) => runAgent(id, text, from),
+  kill: () => { if (callOn) endCall(); if (cur) closeAgent(); setFs(false); }
+};
+AG.nova.say = { text: 'TAP \u25B8 baat karo', until: Date.now() + 7000 };
+refresh();
+})();
+</script>
+</body>
+</html>

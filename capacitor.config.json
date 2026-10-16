@@ -1,0 +1,8 @@
+{
+  "appId": "com.myra.aiultra",
+  "appName": "MYRA AI ULTRA",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
